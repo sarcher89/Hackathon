@@ -32,7 +32,7 @@ export default async function DashboardPage({
   const weekStart = toISODate(monday)
 
   // Fetch all data in parallel
-  const [clientsRes, projectsRes, tasksRes, entriesRes, clockRes] = await Promise.all([
+  const [clientsRes, projectsRes, tasksRes, entriesRes, clockRes, sessionsRes] = await Promise.all([
     supabase.from('clients').select('*').eq('active', true).order('name'),
     supabase.from('projects').select('*').eq('active', true).order('name'),
     supabase.from('tasks').select('*').order('sort_order'),
@@ -50,6 +50,13 @@ export default async function DashboardPage({
       .order('clocked_in_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('clock_sessions')
+      .select('id, entry_date, clocked_in_at, clocked_out_at, hours')
+      .eq('user_id', user.id)
+      .gte('entry_date', dates[0])
+      .lte('entry_date', dates[6])
+      .order('clocked_in_at'),
   ])
 
   const clients: Client[] = clientsRes.data ?? []
@@ -57,6 +64,13 @@ export default async function DashboardPage({
   const tasks: Task[] = tasksRes.data ?? []
   const entries: TimeEntry[] = entriesRes.data ?? []
   const openSession = clockRes.data
+  const clockSessionRows = (sessionsRes.data ?? []).map(s => ({
+    id: s.id,
+    date: s.entry_date,
+    clockedInAt: s.clocked_in_at,
+    clockedOutAt: s.clocked_out_at,
+    hours: s.hours,
+  }))
 
   // Index projects by client
   const projectsByClient: Record<string, Project[]> = {}
@@ -108,6 +122,7 @@ export default async function DashboardPage({
         projectsByClient={projectsByClient}
         tasks={tasks}
         initialRows={initialRows}
+        clockSessionRows={clockSessionRows}
       />
     </div>
   )

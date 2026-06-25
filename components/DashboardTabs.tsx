@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import ClockInOut from '@/components/ClockInOut'
+import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeGrid from '@/components/TimeGrid'
 import { Client, Project, Task } from '@/types/database'
 
-type Tab = 'clock' | 'timesheet'
+type Tab = 'clock' | 'timesheet' | 'projectlog'
 
 interface ClockSession {
   id: string
@@ -28,7 +29,14 @@ interface Props {
   projectsByClient: Record<string, Project[]>
   tasks: Task[]
   initialRows: GridRow[]
+  clockSessionRows: ClockSessionRow[]
 }
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'clock', label: 'Clock In / Out' },
+  { key: 'timesheet', label: 'Time Sheet' },
+  { key: 'projectlog', label: 'Project Log' },
+]
 
 export default function DashboardTabs({
   clockSession,
@@ -38,42 +46,42 @@ export default function DashboardTabs({
   projectsByClient,
   tasks,
   initialRows,
+  clockSessionRows,
 }: Props) {
   const [tab, setTab] = useState<Tab>('clock')
 
   return (
     <div>
-      {/* Tabs */}
       <div className="border-b border-slate-200 mb-6">
         <nav className="flex">
-          <button
-            onClick={() => setTab('clock')}
-            className={[
-              'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
-              tab === 'clock'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700',
-            ].join(' ')}
-          >
-            Clock In / Out
-          </button>
-          <button
-            onClick={() => setTab('timesheet')}
-            className={[
-              'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
-              tab === 'timesheet'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700',
-            ].join(' ')}
-          >
-            Time Sheet
-          </button>
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={[
+                'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                tab === t.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700',
+              ].join(' ')}
+            >
+              {t.label}
+            </button>
+          ))}
         </nav>
       </div>
 
-      {tab === 'clock' ? (
+      {tab === 'clock' && (
         <ClockInOut initialSession={clockSession} />
-      ) : (
+      )}
+      {tab === 'timesheet' && (
+        <TimeSheet
+          key={weekStart}
+          weekStart={weekStart}
+          sessions={clockSessionRows}
+        />
+      )}
+      {tab === 'projectlog' && (
         <TimeGrid
           key={weekStart}
           weekStart={weekStart}
