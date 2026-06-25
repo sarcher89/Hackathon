@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { getMondayOfWeek, getWeekDates, toISODate } from '@/lib/dates'
 import { Client, Project, Task, TimeEntry } from '@/types/database'
-import TimeGrid from '@/components/TimeGrid'
+import DashboardTabs from '@/components/DashboardTabs'
 
 export default async function DashboardPage({
   searchParams,
@@ -31,8 +31,8 @@ export default async function DashboardPage({
   const dates = getWeekDates(monday).map(toISODate)
   const weekStart = toISODate(monday)
 
-  // Fetch all supporting data in parallel
-  const [clientsRes, projectsRes, tasksRes, entriesRes] = await Promise.all([
+  // Fetch all data in parallel
+  const [clientsRes, projectsRes, tasksRes, entriesRes, clockRes] = await Promise.all([
     supabase.from('clients').select('*').eq('active', true).order('name'),
     supabase.from('projects').select('*').eq('active', true).order('name'),
     supabase.from('tasks').select('*').order('sort_order'),
@@ -42,12 +42,21 @@ export default async function DashboardPage({
       .eq('user_id', user.id)
       .gte('entry_date', dates[0])
       .lte('entry_date', dates[6]),
+    supabase
+      .from('clock_sessions')
+      .select('id, clocked_in_at')
+      .eq('user_id', user.id)
+      .is('clocked_out_at', null)
+      .order('clocked_in_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const clients: Client[] = clientsRes.data ?? []
   const projects: Project[] = projectsRes.data ?? []
   const tasks: Task[] = tasksRes.data ?? []
   const entries: TimeEntry[] = entriesRes.data ?? []
+  const openSession = clockRes.data
 
   // Index projects by client
   const projectsByClient: Record<string, Project[]> = {}
@@ -56,7 +65,7 @@ export default async function DashboardPage({
     projectsByClient[p.client_id].push(p)
   }
 
-  // Group existing entries into grid rows by (client, project, task)
+  // Group entries into grid rows
   const rowMap = new Map<
     string,
     { clientId: string; projectId: string | null; taskId: string; hours: Record<string, string> }
@@ -79,15 +88,20 @@ export default async function DashboardPage({
     ...row,
   }))
 
+  const clockSession = openSession
+    ? { id: openSession.id, clockedInAt: openSession.clocked_in_at }
+    : null
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-slate-800">Weekly Time Entry</h2>
-        <p className="mt-1 text-sm text-slate-500">{user.full_name || user.email}</p>
+        <h2 className="text-xl font-semibold text-slate-800">
+          {user.full_name || user.email}
+        </h2>
       </div>
 
-      <TimeGrid
-        key={weekStart}
+      <DashboardTabs
+        clockSession={clockSession}
         weekStart={weekStart}
         dates={dates}
         clients={clients}
