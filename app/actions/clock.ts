@@ -44,9 +44,9 @@ export async function clockOut(sessionId: string): Promise<{ hours: number | nul
 
   const clockedOutAt = new Date()
   const clockedInAt = new Date(session.clocked_in_at)
-  const rawHours = (clockedOutAt.getTime() - clockedInAt.getTime()) / 3600000
-  // Round to nearest 0.25
-  const hours = Math.round(rawHours * 4) / 4
+  const rawMinutes = (clockedOutAt.getTime() - clockedInAt.getTime()) / 60000
+  const minutes = Math.round(rawMinutes)
+  const hours = Math.round((minutes / 60) * 100) / 100
 
   const { error } = await supabase
     .from('clock_sessions')
