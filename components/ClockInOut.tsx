@@ -16,8 +16,7 @@ function formatElapsed(ms: number): string {
   const clamped = Math.max(0, ms)
   const h = Math.floor(clamped / 3600000)
   const m = Math.floor((clamped % 3600000) / 60000)
-  const s = Math.floor((clamped % 60000) / 1000)
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function formatTime(isoString: string): string {
@@ -49,7 +48,6 @@ export default function ClockInOut({ initialSession }: Props) {
       setLocalTime(now.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
         hour12: true,
       }))
       if (session) {
@@ -91,12 +89,13 @@ export default function ClockInOut({ initialSession }: Props) {
 
       {session ? (
         <>
-          <p className="text-sm font-semibold text-green-600 mb-1">
-            In: {formatTime(session.clockedInAt)}
+          <p className="text-sm text-slate-500 mb-0.5">
+            Clocked in: <span className="font-semibold text-green-600">{formatTime(session.clockedInAt)}</span>
           </p>
-          <p className="text-sm font-semibold text-red-500 mb-3">
-            Out: {formatTime(new Date(new Date(session.clockedInAt).getTime() + 8 * 3600000).toISOString())}
+          <p className="text-sm text-slate-500 mb-4">
+            Clock out by: <span className="font-semibold text-red-500">{formatTime(new Date(new Date(session.clockedInAt).getTime() + 8 * 3600000).toISOString())}</span>
           </p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Time Logged</p>
           <p className="text-3xl font-mono text-slate-500 tabular-nums mb-10">
             {elapsed}
           </p>
