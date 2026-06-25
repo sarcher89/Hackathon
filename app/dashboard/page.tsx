@@ -1,28 +1,100 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
+import { getMondayOfWeek, getWeekDates, toISODate } from '@/lib/dates'
+import { Client, Project, Task, TimeEntry } from '@/types/database'
+import TimeGrid from '@/components/TimeGrid'
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { week?: string }
+}) {
   const supabase = createSupabaseServerClient()
 
   const {
     data: { session },
   } = await supabase.auth.getSession()
-
   if (!session) redirect('/login')
 
   const user = await getOrCreateUser(supabase)
-
   if (!user) redirect('/login')
-
   if (user.role === 'leader' || user.role === 'admin') redirect('/leader')
+
+  // Resolve week
+  const weekParam = searchParams.week
+  const monday =
+    weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam)
+      ? getMondayOfWeek(new Date(weekParam + 'T00:00:00'))
+      : getMondayOfWeek(new Date())
+
+  const dates = getWeekDates(monday).map(toISODate)
+  const weekStart = toISODate(monday)
+
+  // Fetch all supporting data in parallel
+  const [clientsRes, projectsRes, tasksRes, entriesRes] = await Promise.all([
+    supabase.from('clients').select('*').eq('active', true).order('name'),
+    supabase.from('projects').select('*').eq('active', true).order('name'),
+    supabase.from('tasks').select('*').order('sort_order'),
+    supabase
+      .from('time_entries')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('entry_date', dates[0])
+      .lte('entry_date', dates[6]),
+  ])
+
+  const clients: Client[] = clientsRes.data ?? []
+  const projects: Project[] = projectsRes.data ?? []
+  const tasks: Task[] = tasksRes.data ?? []
+  const entries: TimeEntry[] = entriesRes.data ?? []
+
+  // Index projects by client
+  const projectsByClient: Record<string, Project[]> = {}
+  for (const p of projects) {
+    if (!projectsByClient[p.client_id]) projectsByClient[p.client_id] = []
+    projectsByClient[p.client_id].push(p)
+  }
+
+  // Group existing entries into grid rows by (client, project, task)
+  const rowMap = new Map<
+    string,
+    { clientId: string; projectId: string | null; taskId: string; hours: Record<string, string> }
+  >()
+  for (const entry of entries) {
+    const key = `${entry.client_id}|${entry.project_id ?? ''}|${entry.task_id}`
+    if (!rowMap.has(key)) {
+      rowMap.set(key, {
+        clientId: entry.client_id,
+        projectId: entry.project_id,
+        taskId: entry.task_id,
+        hours: {},
+      })
+    }
+    rowMap.get(key)!.hours[entry.entry_date] = String(entry.hours)
+  }
+
+  const initialRows = Array.from(rowMap.entries()).map(([key, row]) => ({
+    rowId: key,
+    ...row,
+  }))
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <h2 className="text-xl font-semibold text-slate-800">Weekly Time Entry</h2>
-      <p className="mt-2 text-sm text-slate-500">
-        Time entry grid coming next — foundation is in place.
-      </p>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-slate-800">Weekly Time Entry</h2>
+        <p className="mt-1 text-sm text-slate-500">{user.full_name || user.email}</p>
+      </div>
+
+      <TimeGrid
+        key={weekStart}
+        weekStart={weekStart}
+        dates={dates}
+        clients={clients}
+        projectsByClient={projectsByClient}
+        tasks={tasks}
+        initialRows={initialRows}
+      />
     </div>
   )
 }

@@ -1,0 +1,108 @@
+'use server'
+
+import { createSupabaseServerClient } from '@/lib/supabase'
+import { getOrCreateUser } from '@/lib/auth'
+
+export async function saveTimeEntry({
+  clientId,
+  projectId,
+  taskId,
+  date,
+  hours,
+}: {
+  clientId: string
+  projectId: string | null
+  taskId: string
+  date: string
+  hours: number
+}): Promise<{ success: true; id: string | null } | { success: false; error: string }> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  const base = supabase.from('time_entries')
+
+  if (hours <= 0) {
+    const delBase = base
+      .delete()
+      .eq('user_id', user.id)
+      .eq('client_id', clientId)
+      .eq('task_id', taskId)
+      .eq('entry_date', date)
+
+    const { error } = await (projectId
+      ? delBase.eq('project_id', projectId)
+      : delBase.is('project_id', null))
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, id: null }
+  }
+
+  const selectBase = base
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('client_id', clientId)
+    .eq('task_id', taskId)
+    .eq('entry_date', date)
+
+  const { data: existing } = await (projectId
+    ? selectBase.eq('project_id', projectId).maybeSingle()
+    : selectBase.is('project_id', null).maybeSingle())
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('time_entries')
+      .update({ hours, exported: false })
+      .eq('id', existing.id)
+      .select('id')
+      .single()
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, id: data.id }
+  }
+
+  const { data, error } = await supabase
+    .from('time_entries')
+    .insert({
+      user_id: user.id,
+      client_id: clientId,
+      project_id: projectId,
+      task_id: taskId,
+      entry_date: date,
+      hours,
+      exported: false,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, id: data.id }
+}
+
+export async function clearRowEntries({
+  clientId,
+  projectId,
+  taskId,
+  dates,
+}: {
+  clientId: string
+  projectId: string | null
+  taskId: string
+  dates: string[]
+}): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return
+
+  const deleteBase = supabase
+    .from('time_entries')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('client_id', clientId)
+    .eq('task_id', taskId)
+    .in('entry_date', dates)
+
+  await (projectId
+    ? deleteBase.eq('project_id', projectId)
+    : deleteBase.is('project_id', null))
+}
