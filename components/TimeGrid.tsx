@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Client, Project, Task } from '@/types/database'
 import { saveTimeEntry, clearRowEntries } from '@/app/actions/time-entries'
 import { formatDayHeader, formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
+import Combobox from '@/components/Combobox'
 
 interface GridRow {
   rowId: string
@@ -43,14 +44,6 @@ function getTasksForClient(tasks: Task[], clients: Client[], clientId: string): 
   })
 }
 
-function groupByCategory(tasks: Task[]): Record<string, Task[]> {
-  const map: Record<string, Task[]> = {}
-  for (const t of tasks) {
-    if (!map[t.category]) map[t.category] = []
-    map[t.category].push(t)
-  }
-  return map
-}
 
 function formatHours(n: number): string {
   if (n === 0) return '—'
@@ -237,59 +230,43 @@ export default function TimeGrid({
                 0
               )
               const clientTasks = getTasksForClient(tasks, clients, row.clientId)
-              const tasksByCategory = groupByCategory(clientTasks)
               const projects = row.clientId ? (projectsByClient[row.clientId] ?? []) : []
 
               return (
                 <tr key={row.rowId} className="hover:bg-slate-50/50">
                   {/* Client */}
                   <td className="px-2 py-1.5">
-                    <select
+                    <Combobox
                       value={row.clientId}
-                      onChange={e => updateSelector(row.rowId, 'clientId', e.target.value)}
-                      className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    >
-                      <option value="">— client —</option>
-                      {clients.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      onChange={id => updateSelector(row.rowId, 'clientId', id)}
+                      options={clients.map(c => ({ id: c.id, label: c.name }))}
+                      placeholder="— client —"
+                    />
                   </td>
 
                   {/* Project */}
                   <td className="px-2 py-1.5">
-                    <select
+                    <Combobox
                       value={row.projectId ?? ''}
-                      onChange={e =>
-                        updateSelector(row.rowId, 'projectId', e.target.value || null)
-                      }
+                      onChange={id => updateSelector(row.rowId, 'projectId', id || null)}
+                      options={[
+                        { id: '', label: 'None' },
+                        ...projects.map(p => ({ id: p.id, label: p.name })),
+                      ]}
+                      placeholder="— none —"
                       disabled={!row.clientId || projects.length === 0}
-                      className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 disabled:text-slate-400"
-                    >
-                      <option value="">— none —</option>
-                      {projects.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                    />
                   </td>
 
                   {/* Task */}
                   <td className="px-2 py-1.5">
-                    <select
+                    <Combobox
                       value={row.taskId}
-                      onChange={e => updateSelector(row.rowId, 'taskId', e.target.value)}
+                      onChange={id => updateSelector(row.rowId, 'taskId', id)}
+                      options={clientTasks.map(t => ({ id: t.id, label: t.name, group: t.category }))}
+                      placeholder="— task —"
                       disabled={!row.clientId}
-                      className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 disabled:text-slate-400"
-                    >
-                      <option value="">— task —</option>
-                      {Object.entries(tasksByCategory).map(([category, categoryTasks]) => (
-                        <optgroup key={category} label={category}>
-                          {categoryTasks.map(t => (
-                            <option key={t.id} value={t.id}>{t.name}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    />
                   </td>
 
                   {/* Hour inputs */}
