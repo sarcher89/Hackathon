@@ -123,6 +123,9 @@ export default async function DashboardPage({
         tasks={tasks}
         initialRows={initialRows}
         clockSessionRows={clockSessionRows}
+        userName={user.full_name || user.email}
+        userEmail={user.email}
+        hourlyWage={user.hourly_wage ?? 0}
       />
     </div>
   )

@@ -8,6 +8,7 @@ export interface User {
   full_name: string
   email: string
   role: UserRole
+  hourly_wage: number
   created_at: string
 }
 

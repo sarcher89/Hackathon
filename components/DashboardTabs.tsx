@@ -4,9 +4,10 @@ import { useState } from 'react'
 import ClockInOut from '@/components/ClockInOut'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeGrid from '@/components/TimeGrid'
+import PayStub from '@/components/PayStub'
 import { Client, Project, Task } from '@/types/database'
 
-type Tab = 'clock' | 'timesheet' | 'projectlog'
+type Tab = 'clock' | 'timesheet' | 'projectlog' | 'paystub'
 
 interface ClockSession {
   id: string
@@ -30,12 +31,16 @@ interface Props {
   tasks: Task[]
   initialRows: GridRow[]
   clockSessionRows: ClockSessionRow[]
+  userName: string
+  userEmail: string
+  hourlyWage: number
 }
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'clock', label: 'Clock In / Out' },
   { key: 'timesheet', label: 'Time Sheet' },
   { key: 'projectlog', label: 'Project Log' },
+  { key: 'paystub', label: 'Pay Stub' },
 ]
 
 export default function DashboardTabs({
@@ -47,6 +52,9 @@ export default function DashboardTabs({
   tasks,
   initialRows,
   clockSessionRows,
+  userName,
+  userEmail,
+  hourlyWage,
 }: Props) {
   const [tab, setTab] = useState<Tab>('clock')
 
@@ -90,6 +98,16 @@ export default function DashboardTabs({
           projectsByClient={projectsByClient}
           tasks={tasks}
           initialRows={initialRows}
+        />
+      )}
+      {tab === 'paystub' && (
+        <PayStub
+          key={weekStart}
+          weekStart={weekStart}
+          userName={userName}
+          userEmail={userEmail}
+          hourlyWage={hourlyWage}
+          sessions={clockSessionRows}
         />
       )}
     </div>

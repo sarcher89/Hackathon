@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { getMondayOfWeek, getWeekDates, toISODate } from '@/lib/dates'
-import LeaderGrid, { ExportEntry } from '@/components/LeaderGrid'
+import { ExportEntry } from '@/components/LeaderGrid'
+import LeaderTabs from '@/components/LeaderTabs'
+import { User } from '@/types/database'
 
 export default async function LeaderPage({
   searchParams,
@@ -29,27 +31,32 @@ export default async function LeaderPage({
   const dates = getWeekDates(monday).map(toISODate)
   const weekStart = toISODate(monday)
 
-  // Fetch entries with all relations joined
-  const { data: rows } = await supabase
-    .from('time_entries')
-    .select(`
-      id,
-      entry_date,
-      hours,
-      notes,
-      exported,
-      user:users!inner(full_name, email),
-      client:clients!inner(name),
-      project:projects(name),
-      task:tasks!inner(name, category)
-    `)
-    .gte('entry_date', dates[0])
-    .lte('entry_date', dates[6])
-    .order('entry_date')
-    .order('users.full_name')
+  // Fetch users and entries in parallel
+  const [usersRes, rowsRes] = await Promise.all([
+    supabase.from('users').select('*').order('full_name'),
+    supabase
+      .from('time_entries')
+      .select(`
+        id,
+        entry_date,
+        hours,
+        notes,
+        exported,
+        user:users!inner(full_name, email),
+        client:clients!inner(name),
+        project:projects(name),
+        task:tasks!inner(name, category)
+      `)
+      .gte('entry_date', dates[0])
+      .lte('entry_date', dates[6])
+      .order('entry_date')
+      .order('users.full_name'),
+  ])
+
+  const users: User[] = (usersRes.data ?? []) as User[]
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const entries: ExportEntry[] = (rows ?? []).map((r: any) => ({
+  const entries: ExportEntry[] = (rowsRes.data ?? []).map((r: any) => ({
     id: r.id,
     userName: r.user?.full_name ?? r.user?.email ?? 'Unknown',
     userEmail: r.user?.email ?? '',
@@ -70,11 +77,11 @@ export default async function LeaderPage({
         <p className="mt-1 text-sm text-slate-500">Weekly team summary and payroll export</p>
       </div>
 
-      <LeaderGrid
-        key={weekStart}
+      <LeaderTabs
         weekStart={weekStart}
         dates={dates}
         entries={entries}
+        users={users}
       />
     </div>
   )
