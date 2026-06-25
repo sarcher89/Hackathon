@@ -38,18 +38,25 @@ function formatToday(): string {
 export default function ClockInOut({ initialSession }: Props) {
   const [session, setSession] = useState<ClockSession | null>(initialSession)
   const [elapsed, setElapsed] = useState('')
+  const [localTime, setLocalTime] = useState('')
   const [loading, setLoading] = useState(false)
   const [lastHours, setLastHours] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!session) {
-      setElapsed('')
-      return
-    }
-
     function tick() {
-      const ms = Date.now() - new Date(session!.clockedInAt).getTime()
-      setElapsed(formatElapsed(ms))
+      const now = new Date()
+      setLocalTime(now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      }))
+      if (session) {
+        const ms = now.getTime() - new Date(session.clockedInAt).getTime()
+        setElapsed(formatElapsed(ms))
+      } else {
+        setElapsed('')
+      }
     }
 
     tick()
@@ -76,14 +83,17 @@ export default function ClockInOut({ initialSession }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center py-24">
-      <p className="text-sm text-slate-400 mb-10">{formatToday()}</p>
+      <p className="text-sm text-slate-400 mb-4">{formatToday()}</p>
+      <p className="text-5xl font-mono font-semibold text-slate-800 tabular-nums mb-10">
+        {localTime}
+      </p>
 
       {session ? (
         <>
           <p className="text-sm text-slate-500 mb-3">
             Clocked in at <span className="font-semibold text-slate-700">{formatTime(session.clockedInAt)}</span>
           </p>
-          <p className="text-6xl font-mono font-semibold text-slate-800 mb-10 tabular-nums">
+          <p className="text-3xl font-mono text-slate-500 tabular-nums mb-10">
             {elapsed}
           </p>
           <button
@@ -96,10 +106,12 @@ export default function ClockInOut({ initialSession }: Props) {
         </>
       ) : (
         <>
-          {lastHours !== null && (
-            <p className="text-sm text-green-600 mb-6">
+          {lastHours !== null ? (
+            <p className="text-sm text-green-600 mb-8">
               Session saved — <span className="font-semibold">{lastHours} hrs</span> recorded
             </p>
+          ) : (
+            <div className="mb-8" />
           )}
           <button
             onClick={handleClockIn}
