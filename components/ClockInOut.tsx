@@ -90,8 +90,11 @@ export default function ClockInOut({ initialSession }: Props) {
 
       {session ? (
         <>
-          <p className="text-sm text-slate-500 mb-3">
-            Clocked in at <span className="font-semibold text-slate-700">{formatTime(session.clockedInAt)}</span>
+          <p className="text-sm font-semibold text-green-600 mb-1">
+            In: {formatTime(session.clockedInAt)}
+          </p>
+          <p className="text-sm font-semibold text-red-500 mb-3">
+            Out: {formatTime(new Date(new Date(session.clockedInAt).getTime() + 8 * 3600000).toISOString())}
           </p>
           <p className="text-3xl font-mono text-slate-500 tabular-nums mb-10">
             {elapsed}
