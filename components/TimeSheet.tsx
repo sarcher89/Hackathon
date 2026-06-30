@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
 
@@ -43,6 +42,18 @@ function fmtHrs(n: number): string {
   return n.toFixed(2)
 }
 
+function TimeCell({ iso }: { iso: string }) {
+  const parts = formatTimeParts(iso)
+  return (
+    <div className="flex items-center gap-1">
+      <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
+        {parts.hhmm}
+      </span>
+      <span className="text-xs text-slate-400">{parts.ampm}</span>
+    </div>
+  )
+}
+
 export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   const router = useRouter()
   const monday = new Date(weekStart + 'T00:00:00')
@@ -52,26 +63,16 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     const iso = toISODate(d)
     return {
       iso,
-      abbr: DAY_ABBR[i],
       label: `${DAY_ABBR[i]} ${MONTH_ABBR[d.getMonth()]} ${d.getDate()}`,
       isWeekend: i >= 5,
     }
   })
 
+  // Group sessions by date; sessions already ordered by clocked_in_at asc
   const byDate: Record<string, ClockSessionRow[]> = {}
   for (const s of sessions) {
     if (!byDate[s.date]) byDate[s.date] = []
     byDate[s.date].push(s)
-  }
-
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  function toggleDay(iso: string) {
-    setCollapsed(prev => {
-      const next = new Set(prev)
-      if (next.has(iso)) next.delete(iso)
-      else next.add(iso)
-      return next
-    })
   }
 
   function navigateWeek(offset: number) {
@@ -83,18 +84,19 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
   return (
     <div>
-      {/* Header: total + navigation */}
       <div className="mb-4 flex items-center justify-between">
         <button
           onClick={() => navigateWeek(-1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
         >
-          ← Prev
+          &larr; Prev
         </button>
 
         <div className="flex items-center gap-8">
           <div className="text-center">
-            <p className="text-2xl font-bold text-slate-800 leading-none">{fmtHrs(weekTotal)} <span className="text-base font-semibold text-slate-500">hrs</span></p>
+            <p className="text-2xl font-bold text-slate-800 leading-none">
+              {fmtHrs(weekTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
+            </p>
             <p className="text-xs text-slate-400 mt-0.5">Total</p>
           </div>
           <span className="text-sm font-semibold text-slate-600">{formatWeekRange(monday)}</span>
@@ -104,7 +106,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
           onClick={() => navigateWeek(1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
         >
-          Next →
+          Next &rarr;
         </button>
       </div>
 
@@ -112,10 +114,9 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              <th className="w-8 px-2 py-2.5" />
               <th className="px-3 py-2.5 text-left min-w-[148px]">Date</th>
-              <th className="px-3 py-2.5 text-left min-w-[110px]">From</th>
-              <th className="px-3 py-2.5 text-left min-w-[110px]">To</th>
+              <th className="px-3 py-2.5 text-left min-w-[110px]">In</th>
+              <th className="px-3 py-2.5 text-left min-w-[110px]">Out</th>
               <th className="px-3 py-2.5 text-right w-24">Total</th>
               {!compact && <th className="w-10 px-2 py-2.5 text-center">Notes</th>}
             </tr>
@@ -124,51 +125,50 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
           <tbody>
             {weekDays.map(day => {
               const daySessions = byDate[day.iso] ?? []
-              const dayTotal = daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
-              const isCollapsed = collapsed.has(day.iso)
               const hasEntries = daySessions.length > 0
               const isWeekend = day.isWeekend
 
-              return [
-                /* Day header row */
+              const firstIn = hasEntries ? daySessions[0].clockedInAt : null
+              // Last session that has a clock-out
+              const lastOut = hasEntries
+                ? [...daySessions].reverse().find(s => s.clockedOutAt != null)?.clockedOutAt ?? null
+                : null
+              const anyInProgress = hasEntries && daySessions.some(s => s.clockedOutAt === null)
+              const dayTotal = daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+
+              return (
                 <tr
-                  key={`hdr-${day.iso}`}
+                  key={day.iso}
                   className={[
-                    'border-t border-slate-200 group',
+                    'border-t border-slate-200',
                     isWeekend ? 'bg-slate-50/60' : 'bg-white hover:bg-slate-50/40',
                   ].join(' ')}
                 >
-                  {/* Chevron */}
-                  <td className="px-2 py-2.5 text-center">
-                    {hasEntries && (
-                      <button
-                        onClick={() => toggleDay(day.iso)}
-                        className="text-slate-400 hover:text-slate-600 transition-colors"
-                        aria-label={isCollapsed ? 'Expand' : 'Collapse'}
-                      >
-                        <svg
-                          className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                          viewBox="0 0 16 16" fill="currentColor"
-                        >
-                          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    )}
-                  </td>
-
-                  {/* Day label */}
-                  <td className="px-3 py-2.5">
+                  {/* Date */}
+                  <td className="px-3 py-3">
                     <p className={`font-semibold text-sm ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
                       {day.label}
                     </p>
                   </td>
 
-                  {/* From / To — empty on header */}
-                  <td className="px-3 py-2.5" />
-                  <td className="px-3 py-2.5" />
+                  {/* In */}
+                  <td className="px-3 py-3">
+                    {firstIn ? <TimeCell iso={firstIn} /> : <span className="text-sm text-slate-300">—</span>}
+                  </td>
+
+                  {/* Out */}
+                  <td className="px-3 py-3">
+                    {lastOut ? (
+                      <TimeCell iso={lastOut} />
+                    ) : anyInProgress ? (
+                      <span className="text-xs text-blue-500 font-medium">In progress</span>
+                    ) : (
+                      <span className="text-sm text-slate-300">—</span>
+                    )}
+                  </td>
 
                   {/* Total */}
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-3 py-3 text-right">
                     {hasEntries ? (
                       <span className={`text-sm font-semibold ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>
                         {fmtHrs(dayTotal)} hrs
@@ -179,72 +179,14 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                   </td>
 
                   {!compact && <td />}
-                </tr>,
-
-                /* Entry rows */
-                ...(hasEntries && !isCollapsed
-                  ? daySessions.map(s => {
-                      const inParts = formatTimeParts(s.clockedInAt)
-                      const outParts = s.clockedOutAt ? formatTimeParts(s.clockedOutAt) : null
-
-                      return (
-                        <tr key={s.id} className="border-t border-slate-100 bg-white hover:bg-slate-50/50">
-                          <td />
-                          <td className="px-3 py-2" />
-
-                          {/* From */}
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-1">
-                              <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
-                                {inParts.hhmm}
-                              </span>
-                              <span className="text-xs text-slate-400">{inParts.ampm}</span>
-                            </div>
-                          </td>
-
-                          {/* To */}
-                          <td className="px-3 py-2">
-                            {outParts ? (
-                              <div className="flex items-center gap-1">
-                                <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
-                                  {outParts.hhmm}
-                                </span>
-                                <span className="text-xs text-slate-400">{outParts.ampm}</span>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-blue-500 font-medium">In progress</span>
-                            )}
-                          </td>
-
-                          {/* Total */}
-                          <td className="px-3 py-2 text-right">
-                            <span className="text-xs text-slate-600">
-                              {s.hours !== null ? `${fmtHrs(s.hours)} hrs` : '—'}
-                            </span>
-                          </td>
-
-                          {/* Notes */}
-                          {!compact && (
-                            <td className="px-2 py-2 text-center">
-                              <button className="text-slate-300 hover:text-slate-500 transition-colors">
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-                                </svg>
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      )
-                    })
-                  : []),
-              ]
+                </tr>
+              )
             })}
           </tbody>
 
-          {/* Week total footer */}
           <tfoot>
             <tr className="border-t-2 border-slate-300 bg-slate-50">
-              <td colSpan={4} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <td colSpan={3} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Week Total
               </td>
               <td className="px-3 py-2.5 text-right text-sm font-bold text-slate-800">
