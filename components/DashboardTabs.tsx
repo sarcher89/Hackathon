@@ -7,6 +7,12 @@ import TimeGrid from '@/components/TimeGrid'
 import PayStub from '@/components/PayStub'
 import { Client, Project, Task } from '@/types/database'
 
+interface Balances {
+  vacation_hours: number
+  sick_hours: number
+  bereavement_hours: number
+}
+
 type Tab = 'clock' | 'timesheet' | 'projectlog' | 'paystub'
 
 interface ClockSession {
@@ -34,6 +40,7 @@ interface Props {
   userName: string
   userEmail: string
   hourlyWage: number
+  balances: Balances
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -55,6 +62,7 @@ export default function DashboardTabs({
   userName,
   userEmail,
   hourlyWage,
+  balances,
 }: Props) {
   const [tab, setTab] = useState<Tab>('clock')
 
@@ -85,6 +93,7 @@ export default function DashboardTabs({
           initialSession={clockSession}
           weekStart={weekStart}
           clockSessionRows={clockSessionRows}
+          balances={balances}
         />
       )}
       {tab === 'timesheet' && (

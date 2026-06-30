@@ -50,6 +50,7 @@ interface Props {
   userName: string
   userEmail: string
   hourlyWage: number
+  balances: { vacation_hours: number; sick_hours: number; bereavement_hours: number }
 }
 
 export default function LeaderTabs({
@@ -66,6 +67,7 @@ export default function LeaderTabs({
   userName,
   userEmail,
   hourlyWage,
+  balances,
 }: Props) {
   const [tab, setTab] = useState<Tab>('clock')
 
@@ -115,6 +117,7 @@ export default function LeaderTabs({
           initialSession={clockSession}
           weekStart={weekStart}
           clockSessionRows={clockSessionRows}
+          balances={balances}
         />
       )}
       {tab === 'timesheet' && (

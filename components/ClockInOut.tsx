@@ -3,16 +3,24 @@
 import { useState, useEffect } from 'react'
 import { clockIn, clockOut } from '@/app/actions/clock'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
+import TimeOffModal from '@/components/TimeOffModal'
 
 interface ClockSession {
   id: string
   clockedInAt: string
 }
 
+interface Balances {
+  vacation_hours: number
+  sick_hours: number
+  bereavement_hours: number
+}
+
 interface Props {
   initialSession: ClockSession | null
   weekStart?: string
   clockSessionRows?: ClockSessionRow[]
+  balances?: Balances
 }
 
 function formatElapsed(ms: number): string {
@@ -116,7 +124,7 @@ function AnalogClock({ now }: { now: Date | null }) {
   )
 }
 
-export default function ClockInOut({ initialSession, weekStart, clockSessionRows }: Props) {
+export default function ClockInOut({ initialSession, weekStart, clockSessionRows, balances }: Props) {
   const [session, setSession] = useState<ClockSession | null>(initialSession)
   const [elapsed, setElapsed] = useState('')
   const [localTime, setLocalTime] = useState('')
@@ -126,6 +134,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
   const [, setLastHours] = useState<number | null>(null)
   const [clockedOutAt, setClockedOutAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showTimeOff, setShowTimeOff] = useState(false)
 
   useEffect(() => {
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -282,8 +291,26 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
             )}
           </div>
         </div>
-        <div className="flex gap-3 mt-4">
-          <button className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50" style={{ borderColor: '#0B1460', color: '#0B1460' }}>
+        {balances && (
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            {[
+              { label: 'Vacation', value: balances.vacation_hours },
+              { label: 'Sick', value: balances.sick_hours },
+              { label: 'Bereavement', value: balances.bereavement_hours },
+            ].map(b => (
+              <div key={b.label} className="rounded-lg border border-slate-200 bg-slate-50 py-2 text-center">
+                <p className="text-base font-bold text-slate-800">{b.value}</p>
+                <p className="text-xs text-slate-500">{b.label} hrs</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-3 mt-3">
+          <button
+            onClick={() => setShowTimeOff(true)}
+            className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50"
+            style={{ borderColor: '#0B1460', color: '#0B1460' }}
+          >
             Request Time Off
           </button>
           <button className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50" style={{ borderColor: '#0B1460', color: '#0B1460' }}>
@@ -291,6 +318,13 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
           </button>
         </div>
       </div>
+
+      {showTimeOff && balances && (
+        <TimeOffModal
+          balances={balances}
+          onClose={() => setShowTimeOff(false)}
+        />
+      )}
     </div>
   )
 }

@@ -10,6 +10,34 @@ export interface User {
   role: UserRole
   hourly_wage: number
   department?: string
+  vacation_hours: number
+  sick_hours: number
+  bereavement_hours: number
+  created_at: string
+}
+
+export type TimeOffType = 'vacation' | 'sick' | 'bereavement'
+export type TimeOffStatus = 'pending' | 'approved' | 'denied'
+
+export interface TimeOffRequest {
+  id: string
+  user_id: string
+  request_date: string
+  hours: number
+  type: TimeOffType
+  status: TimeOffStatus
+  notes: string | null
+  created_at: string
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  from_user_id: string
+  type: string
+  message: string
+  read: boolean
+  data: Record<string, unknown> | null
   created_at: string
 }
 

@@ -156,7 +156,11 @@ export default async function LeaderPage({
         userName={user.full_name || user.email}
         userEmail={user.email}
         hourlyWage={user.hourly_wage ?? 0}
-      />
+        balances={{
+          vacation_hours: (user as any).vacation_hours ?? 80,
+          sick_hours: (user as any).sick_hours ?? 40,
+          bereavement_hours: (user as any).bereavement_hours ?? 16,
+        }}
     </div>
   )
 }
