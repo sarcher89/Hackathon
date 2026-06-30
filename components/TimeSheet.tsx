@@ -80,8 +80,6 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
 
   const weekTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
 
-  const COL_SPAN = 7
-
   return (
     <div>
       {/* Header: total + navigation */}

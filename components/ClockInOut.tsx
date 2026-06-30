@@ -39,7 +39,7 @@ export default function ClockInOut({ initialSession }: Props) {
   const [elapsed, setElapsed] = useState('')
   const [localTime, setLocalTime] = useState('')
   const [loading, setLoading] = useState(false)
-  const [lastHours, setLastHours] = useState<number | null>(null)
+  const [, setLastHours] = useState<number | null>(null)
   const [clockedOutAt, setClockedOutAt] = useState<string | null>(null)
 
   useEffect(() => {
