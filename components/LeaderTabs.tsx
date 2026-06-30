@@ -1,26 +1,70 @@
 'use client'
 
 import { useState } from 'react'
+import ClockInOut from '@/components/ClockInOut'
+import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
+import TimeGrid from '@/components/TimeGrid'
+import PayStub from '@/components/PayStub'
 import LeaderGrid, { ExportEntry } from '@/components/LeaderGrid'
 import WageManager from '@/components/WageManager'
-import { User } from '@/types/database'
+import { Client, Project, Task, User } from '@/types/database'
 
-type Tab = 'payroll' | 'team'
+type Tab = 'clock' | 'timesheet' | 'projectlog' | 'paystub' | 'payroll' | 'team'
+
+interface ClockSession {
+  id: string
+  clockedInAt: string
+}
+
+interface GridRow {
+  rowId: string
+  clientId: string
+  projectId: string | null
+  taskId: string
+  hours: Record<string, string>
+}
 
 interface Props {
   weekStart: string
   dates: string[]
   entries: ExportEntry[]
   users: User[]
+  clockSession: ClockSession | null
+  clients: Client[]
+  projectsByClient: Record<string, Project[]>
+  tasks: Task[]
+  initialRows: GridRow[]
+  clockSessionRows: ClockSessionRow[]
+  userName: string
+  userEmail: string
+  hourlyWage: number
 }
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: 'clock', label: 'Clock In / Out' },
+  { key: 'timesheet', label: 'Time Sheet' },
+  { key: 'projectlog', label: 'Project Log' },
+  { key: 'paystub', label: 'Pay Stub' },
   { key: 'payroll', label: 'Payroll Export' },
   { key: 'team', label: 'Team Wages' },
 ]
 
-export default function LeaderTabs({ weekStart, dates, entries, users }: Props) {
-  const [tab, setTab] = useState<Tab>('payroll')
+export default function LeaderTabs({
+  weekStart,
+  dates,
+  entries,
+  users,
+  clockSession,
+  clients,
+  projectsByClient,
+  tasks,
+  initialRows,
+  clockSessionRows,
+  userName,
+  userEmail,
+  hourlyWage,
+}: Props) {
+  const [tab, setTab] = useState<Tab>('clock')
 
   return (
     <div>
@@ -43,6 +87,37 @@ export default function LeaderTabs({ weekStart, dates, entries, users }: Props) 
         </nav>
       </div>
 
+      {tab === 'clock' && (
+        <ClockInOut initialSession={clockSession} />
+      )}
+      {tab === 'timesheet' && (
+        <TimeSheet
+          key={weekStart}
+          weekStart={weekStart}
+          sessions={clockSessionRows}
+        />
+      )}
+      {tab === 'projectlog' && (
+        <TimeGrid
+          key={weekStart}
+          weekStart={weekStart}
+          dates={dates}
+          clients={clients}
+          projectsByClient={projectsByClient}
+          tasks={tasks}
+          initialRows={initialRows}
+        />
+      )}
+      {tab === 'paystub' && (
+        <PayStub
+          key={weekStart}
+          weekStart={weekStart}
+          userName={userName}
+          userEmail={userEmail}
+          hourlyWage={hourlyWage}
+          sessions={clockSessionRows}
+        />
+      )}
       {tab === 'payroll' && (
         <LeaderGrid
           key={weekStart}
