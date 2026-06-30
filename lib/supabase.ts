@@ -4,9 +4,15 @@ import { cookies } from 'next/headers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Plain client — no session awareness.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Service role client — bypasses RLS. Server-side only, never expose to browser.
+export function createSupabaseServiceClient() {
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
 
 // Browser client with session awareness — use in Client Components.
 export function createSupabaseBrowserClient() {

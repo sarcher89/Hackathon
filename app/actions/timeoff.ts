@@ -1,6 +1,6 @@
 'use server'
 
-import { createSupabaseServerClient } from '@/lib/supabase'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { TimeOffType } from '@/types/database'
 
@@ -27,11 +27,15 @@ export async function submitTimeOffRequest(entries: TimeOffEntry[], notes?: stri
   const { error: insertError } = await supabase.from('time_off_requests').insert(rows)
   if (insertError) return { error: insertError.message }
 
-  // Notify all admins and leaders
-  const { data: admins } = await supabase
+  // Use service role to read all leaders/admins and write notifications (bypasses RLS)
+  const service = createSupabaseServiceClient()
+
+  const { data: admins, error: adminError } = await service
     .from('users')
     .select('id')
     .in('role', ['admin', 'leader'])
+
+  if (adminError) console.error('Failed to fetch admins for notification:', adminError.message)
 
   if (admins && admins.length > 0) {
     const dateList = entries.map(e => e.date).join(', ')
@@ -43,7 +47,8 @@ export async function submitTimeOffRequest(entries: TimeOffEntry[], notes?: stri
       message: `${user.full_name || user.email} requested ${totalHours}h time off (${dateList})`,
       data: { entries, notes },
     }))
-    await supabase.from('notifications').insert(notifications)
+    const { error: notifError } = await service.from('notifications').insert(notifications)
+    if (notifError) console.error('Failed to insert notifications:', notifError.message)
   }
 
   return {}
