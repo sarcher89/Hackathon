@@ -130,9 +130,9 @@ export default async function DashboardPage({
         userEmail={user.email}
         hourlyWage={user.hourly_wage ?? 0}
         balances={{
-          vacation_hours: (user as any).vacation_hours ?? 80,
-          sick_hours: (user as any).sick_hours ?? 40,
-          bereavement_hours: (user as any).bereavement_hours ?? 16,
+          vacation_hours: user.vacation_hours ?? 80,
+          sick_hours: user.sick_hours ?? 40,
+          bereavement_hours: user.bereavement_hours ?? 16,
         }}
       />
     </div>
