@@ -19,12 +19,11 @@ function formatElapsed(ms: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-function formatTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
+function formatDateTime(isoString: string): string {
+  const d = new Date(isoString)
+  const date = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${date} at ${time}`
 }
 
 function formatToday(): string {
@@ -41,6 +40,7 @@ export default function ClockInOut({ initialSession }: Props) {
   const [localTime, setLocalTime] = useState('')
   const [loading, setLoading] = useState(false)
   const [lastHours, setLastHours] = useState<number | null>(null)
+  const [clockedOutAt, setClockedOutAt] = useState<string | null>(null)
 
   useEffect(() => {
     function tick() {
@@ -66,6 +66,7 @@ export default function ClockInOut({ initialSession }: Props) {
   async function handleClockIn() {
     setLoading(true)
     setLastHours(null)
+    setClockedOutAt(null)
     const result = await clockIn()
     if (result.session) setSession(result.session)
     setLoading(false)
@@ -74,8 +75,10 @@ export default function ClockInOut({ initialSession }: Props) {
   async function handleClockOut() {
     if (!session) return
     setLoading(true)
+    const outTime = new Date().toISOString()
     const result = await clockOut(session.id)
     setSession(null)
+    setClockedOutAt(outTime)
     if (result.hours !== null) setLastHours(result.hours)
     setLoading(false)
   }
@@ -89,11 +92,8 @@ export default function ClockInOut({ initialSession }: Props) {
 
       {session ? (
         <>
-          <p className="text-sm text-slate-500 mb-0.5">
-            Clocked in: <span className="font-semibold text-green-600">{formatTime(session.clockedInAt)}</span>
-          </p>
-          <p className="text-sm text-slate-500 mb-4">
-            Clock out by: <span className="font-semibold text-red-500">{formatTime(new Date(new Date(session.clockedInAt).getTime() + 8 * 3600000).toISOString())}</span>
+          <p className="text-sm font-semibold text-green-600 mb-4">
+            Clocked in on {formatDateTime(session.clockedInAt)}
           </p>
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Time Logged</p>
           <p className="text-3xl font-mono text-slate-500 tabular-nums mb-10">
@@ -109,9 +109,9 @@ export default function ClockInOut({ initialSession }: Props) {
         </>
       ) : (
         <>
-          {lastHours !== null ? (
-            <p className="text-sm text-green-600 mb-8">
-              Session saved — <span className="font-semibold">{lastHours} hrs</span> recorded
+          {clockedOutAt !== null ? (
+            <p className="text-sm font-semibold text-red-500 mb-8">
+              Clocked out on {formatDateTime(clockedOutAt)}
             </p>
           ) : (
             <div className="mb-8" />
