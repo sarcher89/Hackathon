@@ -66,10 +66,11 @@ export default function DashboardTabs({
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
+              style={tab === t.key ? { color: '#0B1460', borderColor: '#0B1460' } : {}}
               className={[
                 'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
                 tab === t.key
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'font-semibold'
                   : 'border-transparent text-slate-500 hover:text-slate-700',
               ].join(' ')}
             >
