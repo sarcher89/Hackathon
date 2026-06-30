@@ -75,7 +75,7 @@ function AnalogClock({ now }: { now: Date | null }) {
       <circle cx={cx} cy={cy} r={r + 8} fill="#1a1a1a" />
       <circle cx={cx} cy={cy} r={r + 4} fill="#2d2d2d" />
       <circle cx={cx} cy={cy} r={r} fill="white" />
-      <circle cx={cx} cy={cy} r={r - 5} fill="none" stroke="#0B1460" strokeWidth="1.5" opacity="0.35" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#0B1460" strokeWidth="2" />
 
       {Array.from({ length: 60 }, (_, i) => {
         const isHour = i % 5 === 0
