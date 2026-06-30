@@ -75,6 +75,7 @@ function AnalogClock({ now }: { now: Date | null }) {
       <circle cx={cx} cy={cy} r={r + 8} fill="#1a1a1a" />
       <circle cx={cx} cy={cy} r={r + 4} fill="#2d2d2d" />
       <circle cx={cx} cy={cy} r={r} fill="white" />
+      <circle cx={cx} cy={cy} r={r - 5} fill="none" stroke="#0B1460" strokeWidth="1.5" opacity="0.35" />
 
       {Array.from({ length: 60 }, (_, i) => {
         const isHour = i % 5 === 0
@@ -271,8 +272,8 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
         <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 text-center mb-4">
           Time Sheet Preview
         </h3>
-        <div className="rounded-2xl border-4 border-indigo-900/80 bg-white overflow-hidden">
-          <div className="overflow-auto max-h-[560px] p-2">
+        <div className="rounded-2xl border-4 bg-white overflow-hidden" style={{ borderColor: '#0B1460' }}>
+          <div className="overflow-auto max-h-[560px] pt-6 px-2 pb-2">
             {weekStart && clockSessionRows ? (
               <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
             ) : (
