@@ -110,7 +110,7 @@ export default async function DashboardPage({
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-slate-800">
-          {user.full_name || user.email}
+          Hello, {(user.full_name || user.email).split(' ')[0]}
         </h2>
       </div>
 

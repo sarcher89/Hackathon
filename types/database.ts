@@ -9,6 +9,7 @@ export interface User {
   email: string
   role: UserRole
   hourly_wage: number
+  department?: string
   created_at: string
 }
 

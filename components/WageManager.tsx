@@ -32,7 +32,10 @@ export default function WageManager({ users: initialUsers }: Props) {
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200">
             <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Employee
+              Name
+            </th>
+            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Department
             </th>
             <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
               Role
@@ -49,6 +52,9 @@ export default function WageManager({ users: initialUsers }: Props) {
               <td className="px-4 py-3">
                 <div className="text-sm font-medium text-slate-800">{u.full_name || '—'}</div>
                 <div className="text-xs text-slate-400">{u.email}</div>
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-600">
+                {u.department || <span className="text-slate-300">—</span>}
               </td>
               <td className="px-4 py-3 text-sm text-slate-600 capitalize">{u.role}</td>
               <td className="px-4 py-3 text-right">
