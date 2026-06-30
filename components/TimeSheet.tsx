@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
 
@@ -68,11 +69,21 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     }
   })
 
-  // Group sessions by date; sessions already ordered by clocked_in_at asc
   const byDate: Record<string, ClockSessionRow[]> = {}
   for (const s of sessions) {
     if (!byDate[s.date]) byDate[s.date] = []
     byDate[s.date].push(s)
+  }
+
+  // Default all days to collapsed
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  function toggleDay(iso: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(iso)) next.delete(iso)
+      else next.add(iso)
+      return next
+    })
   }
 
   function navigateWeek(offset: number) {
@@ -81,6 +92,8 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   }
 
   const weekTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+
+  const colSpan = compact ? 4 : 5
 
   return (
     <div>
@@ -114,6 +127,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <th className="w-8 px-2 py-2.5" />
               <th className="px-3 py-2.5 text-left min-w-[148px]">Date</th>
               <th className="px-3 py-2.5 text-left min-w-[110px]">In</th>
               <th className="px-3 py-2.5 text-left min-w-[110px]">Out</th>
@@ -127,48 +141,66 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
               const daySessions = byDate[day.iso] ?? []
               const hasEntries = daySessions.length > 0
               const isWeekend = day.isWeekend
+              const isExpanded = expanded.has(day.iso)
 
               const firstIn = hasEntries ? daySessions[0].clockedInAt : null
-              // Last session that has a clock-out
               const lastOut = hasEntries
                 ? [...daySessions].reverse().find(s => s.clockedOutAt != null)?.clockedOutAt ?? null
                 : null
               const anyInProgress = hasEntries && daySessions.some(s => s.clockedOutAt === null)
               const dayTotal = daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
 
-              return (
+              return [
                 <tr
-                  key={day.iso}
+                  key={`hdr-${day.iso}`}
                   className={[
                     'border-t border-slate-200',
                     isWeekend ? 'bg-slate-50/60' : 'bg-white hover:bg-slate-50/40',
+                    hasEntries ? 'cursor-pointer' : '',
                   ].join(' ')}
+                  onClick={() => hasEntries && toggleDay(day.iso)}
                 >
+                  {/* Chevron */}
+                  <td className="px-2 py-2.5 text-center">
+                    {hasEntries && (
+                      <svg
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform mx-auto ${isExpanded ? '' : '-rotate-90'}`}
+                        viewBox="0 0 16 16" fill="currentColor"
+                      >
+                        <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </td>
+
                   {/* Date */}
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2.5">
                     <p className={`font-semibold text-sm ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
                       {day.label}
                     </p>
                   </td>
 
                   {/* In */}
-                  <td className="px-3 py-3">
-                    {firstIn ? <TimeCell iso={firstIn} /> : <span className="text-sm text-slate-300">—</span>}
-                  </td>
-
-                  {/* Out */}
-                  <td className="px-3 py-3">
-                    {lastOut ? (
-                      <TimeCell iso={lastOut} />
-                    ) : anyInProgress ? (
-                      <span className="text-xs text-blue-500 font-medium">In progress</span>
+                  <td className="px-3 py-2.5">
+                    {anyInProgress ? (
+                      <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                    ) : firstIn ? (
+                      <TimeCell iso={firstIn} />
                     ) : (
                       <span className="text-sm text-slate-300">—</span>
                     )}
                   </td>
 
+                  {/* Out */}
+                  <td className="px-3 py-2.5">
+                    {lastOut ? (
+                      <TimeCell iso={lastOut} />
+                    ) : !anyInProgress ? (
+                      <span className="text-sm text-slate-300">—</span>
+                    ) : null}
+                  </td>
+
                   {/* Total */}
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-3 py-2.5 text-right">
                     {hasEntries ? (
                       <span className={`text-sm font-semibold ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>
                         {fmtHrs(dayTotal)} hrs
@@ -179,14 +211,75 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                   </td>
 
                   {!compact && <td />}
-                </tr>
-              )
+                </tr>,
+
+                /* Expanded session rows */
+                ...(hasEntries && isExpanded
+                  ? daySessions.map(s => {
+                      const inParts = formatTimeParts(s.clockedInAt)
+                      const outParts = s.clockedOutAt ? formatTimeParts(s.clockedOutAt) : null
+                      const isActive = s.clockedOutAt === null
+
+                      return (
+                        <tr key={s.id} className="border-t border-slate-100 bg-slate-50/40">
+                          <td />
+                          <td className="px-3 py-2 pl-8 text-xs text-slate-400 italic">session</td>
+
+                          {/* In */}
+                          <td className="px-3 py-2">
+                            {isActive ? (
+                              <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
+                                  {inParts.hhmm}
+                                </span>
+                                <span className="text-xs text-slate-400">{inParts.ampm}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Out */}
+                          <td className="px-3 py-2">
+                            {outParts ? (
+                              <div className="flex items-center gap-1">
+                                <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
+                                  {outParts.hhmm}
+                                </span>
+                                <span className="text-xs text-slate-400">{outParts.ampm}</span>
+                              </div>
+                            ) : isActive ? null : (
+                              <span className="text-xs text-slate-300">—</span>
+                            )}
+                          </td>
+
+                          {/* Total */}
+                          <td className="px-3 py-2 text-right">
+                            <span className="text-xs text-slate-500">
+                              {s.hours !== null ? `${fmtHrs(s.hours)} hrs` : '—'}
+                            </span>
+                          </td>
+
+                          {!compact && (
+                            <td className="px-2 py-2 text-center">
+                              <button className="text-slate-300 hover:text-slate-500 transition-colors">
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })
+                  : []),
+              ]
             })}
           </tbody>
 
           <tfoot>
             <tr className="border-t-2 border-slate-300 bg-slate-50">
-              <td colSpan={3} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <td colSpan={colSpan - 1} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Week Total
               </td>
               <td className="px-3 py-2.5 text-right text-sm font-bold text-slate-800">
