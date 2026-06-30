@@ -19,8 +19,7 @@ function formatElapsed(ms: number): string {
   const clamped = Math.max(0, ms)
   const h = Math.floor(clamped / 3600000)
   const m = Math.floor((clamped % 3600000) / 60000)
-  const s = Math.floor((clamped % 60000) / 1000)
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`
 }
 
 function formatDateTime(isoString: string): string {
@@ -30,7 +29,17 @@ function formatDateTime(isoString: string): string {
   return `${date} at ${time}`
 }
 
-function AnalogClock({ now }: { now: Date }) {
+function AnalogClock({ now }: { now: Date | null }) {
+  if (!now) {
+    return (
+      <svg viewBox="0 0 220 220" className="w-64 h-64 drop-shadow-lg">
+        <circle cx="110" cy="110" r="108" fill="#1a1a1a" />
+        <circle cx="110" cy="110" r="104" fill="#2d2d2d" />
+        <circle cx="110" cy="110" r="100" fill="white" />
+      </svg>
+    )
+  }
+
   const h = now.getHours() % 12
   const m = now.getMinutes()
   const s = now.getSeconds()
@@ -63,14 +72,10 @@ function AnalogClock({ now }: { now: Date }) {
 
   return (
     <svg viewBox="0 0 220 220" className="w-64 h-64 drop-shadow-lg">
-      {/* Outer bezel */}
       <circle cx={cx} cy={cy} r={r + 8} fill="#1a1a1a" />
-      {/* Inner bezel highlight */}
       <circle cx={cx} cy={cy} r={r + 4} fill="#2d2d2d" />
-      {/* Clock face */}
       <circle cx={cx} cy={cy} r={r} fill="white" />
 
-      {/* Minute tick marks (60) */}
       {Array.from({ length: 60 }, (_, i) => {
         const isHour = i % 5 === 0
         const rad = ((i * 6 - 90) * Math.PI) / 180
@@ -78,45 +83,33 @@ function AnalogClock({ now }: { now: Date }) {
         return (
           <line
             key={i}
-            x1={cx + inner * Math.cos(rad)}
-            y1={cy + inner * Math.sin(rad)}
-            x2={cx + (r - 2) * Math.cos(rad)}
-            y2={cy + (r - 2) * Math.sin(rad)}
-            stroke={isHour ? '#1a1a1a' : '#999'}
+            x1={cx + inner * Math.cos(rad)} y1={cy + inner * Math.sin(rad)}
+            x2={cx + (r - 2) * Math.cos(rad)} y2={cy + (r - 2) * Math.sin(rad)}
+            stroke={isHour ? '#1a1a1a' : '#aaa'}
             strokeWidth={isHour ? 2.5 : 1}
           />
         )
       })}
 
-      {/* Hour numbers */}
       {numbers.map((n, i) => {
         const rad = ((i * 30 - 90) * Math.PI) / 180
-        const nr = r - 26
         return (
           <text
             key={n}
-            x={cx + nr * Math.cos(rad)}
-            y={cy + nr * Math.sin(rad)}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontSize="16"
-            fontWeight="700"
-            fontFamily="Arial, sans-serif"
-            fill="#1a1a1a"
+            x={cx + (r - 26) * Math.cos(rad)}
+            y={cy + (r - 26) * Math.sin(rad)}
+            textAnchor="middle" dominantBaseline="central"
+            fontSize="16" fontWeight="700" fontFamily="Arial, sans-serif" fill="#1a1a1a"
           >
             {n}
           </text>
         )
       })}
 
-      {/* Hour hand */}
       {hand(hrDeg, 58, 7, '#1a1a1a', 12)}
-      {/* Minute hand */}
       {hand(minDeg, 78, 5, '#1a1a1a', 14)}
-      {/* Second hand */}
       {hand(secDeg, 84, 1.5, '#e53e3e', 16)}
 
-      {/* Center cap */}
       <circle cx={cx} cy={cy} r={6} fill="#1a1a1a" />
       <circle cx={cx} cy={cy} r={2.5} fill="#e53e3e" />
     </svg>
@@ -125,14 +118,17 @@ function AnalogClock({ now }: { now: Date }) {
 
 export default function ClockInOut({ initialSession, weekStart, clockSessionRows }: Props) {
   const [session, setSession] = useState<ClockSession | null>(initialSession)
-  const [elapsed, setElapsed] = useState('00:00:00')
+  const [elapsed, setElapsed] = useState('')
   const [localTime, setLocalTime] = useState('')
-  const [now, setNow] = useState(new Date())
+  const [timezone, setTimezone] = useState('')
+  const [now, setNow] = useState<Date | null>(null)
   const [loading, setLoading] = useState(false)
   const [, setLastHours] = useState<number | null>(null)
   const [clockedOutAt, setClockedOutAt] = useState<string | null>(null)
 
   useEffect(() => {
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+
     function tick() {
       const n = new Date()
       setNow(n)
@@ -144,8 +140,8 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
       }
     }
     tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
   }, [session])
 
   async function handleClockIn() {
@@ -176,36 +172,45 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
       <div className="flex flex-col items-center justify-center py-10 flex-1 min-w-0">
         <AnalogClock now={now} />
 
-        {/* Digital time */}
-        <p className="font-orbitron text-4xl font-semibold text-slate-800 tabular-nums mt-5 mb-5 tracking-widest">
-          {localTime}
-        </p>
+        {/* Digital time — greyed when clocked out */}
+        <div className={`mt-5 mb-1 text-center transition-opacity ${isClockedIn ? 'opacity-100' : 'opacity-40'}`}>
+          <p className="text-4xl font-mono font-semibold text-slate-800 tabular-nums tracking-wide">
+            {localTime || ' '}
+          </p>
+          {timezone && (
+            <p className="text-xs text-slate-400 mt-0.5 tracking-wide">{timezone}</p>
+          )}
+        </div>
 
-        {/* Clock in/out status */}
-        {isClockedIn ? (
-          <p className="text-sm text-slate-600 mb-2">
-            Clocked In on{' '}
-            <span className="font-semibold text-green-600">
-              {formatDateTime(session!.clockedInAt)}
-            </span>
-          </p>
-        ) : clockedOutAt ? (
-          <p className="text-sm font-semibold text-red-500 mb-2">
-            Clocked out on {formatDateTime(clockedOutAt)}
-          </p>
-        ) : (
-          <div className="mb-2 h-5" />
+        {/* Status line */}
+        <div className="mt-4 mb-2 min-h-[1.5rem] text-center">
+          {isClockedIn ? (
+            <p className="text-sm text-slate-600">
+              Clocked In on{' '}
+              <span className="font-semibold text-green-600">
+                {formatDateTime(session!.clockedInAt)}
+              </span>
+            </p>
+          ) : clockedOutAt ? (
+            <p className="text-sm font-semibold text-red-500">
+              Clocked out on {formatDateTime(clockedOutAt)}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Elapsed timer — only visible when clocked in */}
+        {isClockedIn && (
+          <div className="flex flex-col items-center mt-3 mb-7">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
+              Time Logged
+            </p>
+            <p className="text-3xl font-mono text-slate-500 tabular-nums">
+              {elapsed}
+            </p>
+          </div>
         )}
 
-        {/* Elapsed timer — greyed out when not clocked in */}
-        <div className={`flex flex-col items-center mt-3 mb-7 transition-opacity ${isClockedIn ? 'opacity-100' : 'opacity-30'}`}>
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
-            Time Logged
-          </p>
-          <p className="font-orbitron text-3xl tabular-nums tracking-wider text-slate-500">
-            {elapsed}
-          </p>
-        </div>
+        {!isClockedIn && <div className="mb-7 mt-3 h-[68px]" />}
 
         {/* Action button */}
         {isClockedIn ? (

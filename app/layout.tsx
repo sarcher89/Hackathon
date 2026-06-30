@@ -1,8 +1,5 @@
 import type { Metadata } from 'next'
-import { Orbitron } from 'next/font/google'
 import './globals.css'
-
-const orbitron = Orbitron({ subsets: ['latin'], variable: '--font-orbitron' })
 
 export const metadata: Metadata = {
   title: 'PS Time Tracker',
@@ -16,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${orbitron.variable} min-h-screen bg-white text-slate-900 antialiased`}>
+      <body className="min-h-screen bg-white text-slate-900 antialiased">
         {children}
       </body>
     </html>
