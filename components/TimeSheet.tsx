@@ -82,7 +82,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="sticky top-0 z-10 bg-white mb-4 flex items-center justify-between px-1 py-2 border-b border-slate-100">
         <button
           onClick={() => navigatePeriod(-1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
@@ -100,12 +100,23 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
           <span className="text-sm font-semibold text-slate-600">{formatPeriodRange(periodStart)}</span>
         </div>
 
-        <button
-          onClick={() => navigatePeriod(1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-        >
-          Next &rarr;
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="rounded-full p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors relative"
+            aria-label="Notifications"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </button>
+          <button
+            onClick={() => navigatePeriod(1)}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Next &rarr;
+          </button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
