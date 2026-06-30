@@ -181,9 +181,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
                   {/* In */}
                   <td className="px-3 py-2.5">
-                    {anyInProgress ? (
-                      <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
-                    ) : firstIn ? (
+                    {firstIn ? (
                       <TimeCell iso={firstIn} />
                     ) : (
                       <span className="text-sm text-slate-300">—</span>
@@ -194,9 +192,11 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                   <td className="px-3 py-2.5">
                     {lastOut ? (
                       <TimeCell iso={lastOut} />
-                    ) : !anyInProgress ? (
+                    ) : anyInProgress ? (
+                      <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                    ) : (
                       <span className="text-sm text-slate-300">—</span>
-                    ) : null}
+                    )}
                   </td>
 
                   {/* Total */}
@@ -227,16 +227,12 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
                           {/* In */}
                           <td className="px-3 py-2">
-                            {isActive ? (
-                              <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
-                                  {inParts.hhmm}
-                                </span>
-                                <span className="text-xs text-slate-400">{inParts.ampm}</span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1">
+                              <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
+                                {inParts.hhmm}
+                              </span>
+                              <span className="text-xs text-slate-400">{inParts.ampm}</span>
+                            </div>
                           </td>
 
                           {/* Out */}
@@ -248,7 +244,9 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                                 </span>
                                 <span className="text-xs text-slate-400">{outParts.ampm}</span>
                               </div>
-                            ) : isActive ? null : (
+                            ) : isActive ? (
+                              <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                            ) : (
                               <span className="text-xs text-slate-300">—</span>
                             )}
                           </td>
