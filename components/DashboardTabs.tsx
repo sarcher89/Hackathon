@@ -80,7 +80,11 @@ export default function DashboardTabs({
       </div>
 
       {tab === 'clock' && (
-        <ClockInOut initialSession={clockSession} />
+        <ClockInOut
+          initialSession={clockSession}
+          weekStart={weekStart}
+          clockSessionRows={clockSessionRows}
+        />
       )}
       {tab === 'timesheet' && (
         <TimeSheet
