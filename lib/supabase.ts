@@ -13,14 +13,30 @@ export function createSupabaseBrowserClient() {
   return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
-// Server Component client — reads session from request cookies.
-// Must be called inside an async Server Component or Route Handler.
+// Server client — reads AND writes session cookies so token refresh works
+// in both Server Components and Server Actions.
 export function createSupabaseServerClient() {
   const cookieStore = cookies()
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value
+      },
+      set(name: string, value: string, options: Record<string, unknown>) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          cookieStore.set({ name, value, ...(options as any) })
+        } catch {
+          // In pure Server Components cookies are read-only; safe to ignore.
+        }
+      },
+      remove(name: string, options: Record<string, unknown>) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          cookieStore.set({ name, value: '', ...(options as any) })
+        } catch {
+          // Ignore in Server Components.
+        }
       },
     },
   })

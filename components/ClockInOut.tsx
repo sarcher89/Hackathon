@@ -125,6 +125,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
   const [loading, setLoading] = useState(false)
   const [, setLastHours] = useState<number | null>(null)
   const [clockedOutAt, setClockedOutAt] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -146,18 +147,29 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
 
   async function handleClockIn() {
     setLoading(true)
+    setError(null)
     setLastHours(null)
     setClockedOutAt(null)
     const result = await clockIn()
-    if (result.session) setSession(result.session)
+    if (result.session) {
+      setSession(result.session)
+    } else {
+      setError(result.error ?? 'Clock in failed. Please try again.')
+    }
     setLoading(false)
   }
 
   async function handleClockOut() {
     if (!session) return
     setLoading(true)
+    setError(null)
     const outTime = new Date().toISOString()
     const result = await clockOut(session.id)
+    if (result.error) {
+      setError(result.error)
+      setLoading(false)
+      return
+    }
     setSession(null)
     setClockedOutAt(outTime)
     if (result.hours !== null) setLastHours(result.hours)
@@ -211,6 +223,12 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
         )}
 
         {!isClockedIn && <div className="mb-7 mt-3 h-[68px]" />}
+
+        {error && (
+          <p className="mb-3 text-xs text-red-600 font-medium text-center max-w-xs">
+            {error}
+          </p>
+        )}
 
         {/* Action button */}
         {isClockedIn ? (
