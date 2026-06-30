@@ -271,14 +271,16 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
         <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 text-center mb-4">
           Time Sheet Preview
         </h3>
-        <div className="rounded-2xl border-2 border-indigo-900/80 bg-white overflow-auto max-h-[560px] p-2">
-          {weekStart && clockSessionRows ? (
-            <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
-          ) : (
-            <div className="h-64 flex items-center justify-center text-sm text-slate-400">
-              No data
-            </div>
-          )}
+        <div className="rounded-2xl border-4 border-indigo-900/80 bg-white overflow-hidden">
+          <div className="overflow-auto max-h-[560px] p-2">
+            {weekStart && clockSessionRows ? (
+              <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
+            ) : (
+              <div className="h-64 flex items-center justify-center text-sm text-slate-400">
+                No data
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
