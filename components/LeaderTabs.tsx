@@ -68,18 +68,18 @@ export default function LeaderTabs({
 
   return (
     <div>
-      <div className="border-b border-slate-200 mb-6">
-        <nav className="flex">
+      <div className="border-b border-slate-200 mb-6 pb-2">
+        <nav className="flex gap-1">
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              style={tab === t.key ? { color: '#0B1460', borderColor: '#0B1460' } : {}}
+              style={tab === t.key ? { backgroundColor: '#0B1460' } : {}}
               className={[
-                'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                'px-5 py-2 text-sm font-semibold rounded-md transition-colors',
                 tab === t.key
-                  ? 'font-semibold'
-                  : 'border-transparent text-slate-500 hover:text-slate-700',
+                  ? 'text-white'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100',
               ].join(' ')}
             >
               {t.label}
