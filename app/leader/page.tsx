@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { getMondayOfWeek, getWeekDates, toISODate } from '@/lib/dates'
+import { getMondayOfWeek, getWeekDates, getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
 import { ExportEntry } from '@/components/LeaderGrid'
 import LeaderTabs from '@/components/LeaderTabs'
 import { Client, Project, Task, TimeEntry, User } from '@/types/database'
@@ -21,15 +21,18 @@ export default async function LeaderPage({
   const user = await getOrCreateUser(supabase)
   if (!user || (user.role !== 'leader' && user.role !== 'admin')) redirect('/dashboard')
 
-  // Resolve week
+  // Resolve period (1st–15th or 16th–end of month)
   const weekParam = searchParams.week
-  const monday =
-    weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam)
-      ? getMondayOfWeek(new Date(weekParam + 'T00:00:00'))
-      : getMondayOfWeek(new Date())
+  const periodStart = weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam)
+    ? getPeriodStart(new Date(weekParam + 'T00:00:00'))
+    : getPeriodStart(new Date())
 
+  const periodDates = getPeriodDates(periodStart).map(toISODate)
+  const weekStart = toISODate(periodStart)
+
+  // Keep 7-day dates for TimeGrid columns (Mon–Sun of the week containing period start)
+  const monday = getMondayOfWeek(periodStart)
   const dates = getWeekDates(monday).map(toISODate)
-  const weekStart = toISODate(monday)
 
   // Fetch all data in parallel
   const [usersRes, rowsRes, clientsRes, projectsRes, tasksRes, myEntriesRes, clockRes, sessionsRes] = await Promise.all([
@@ -72,8 +75,8 @@ export default async function LeaderPage({
       .from('clock_sessions')
       .select('id, entry_date, clocked_in_at, clocked_out_at, hours')
       .eq('user_id', user.id)
-      .gte('entry_date', dates[0])
-      .lte('entry_date', dates[6])
+      .gte('entry_date', periodDates[0])
+      .lte('entry_date', periodDates[periodDates.length - 1])
       .order('clocked_in_at'),
   ])
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
+import { getPeriodStart, getPeriodDates, offsetPeriod, formatPeriodRange, toISODate } from '@/lib/dates'
 
 export interface ClockSessionRow {
   id: string
@@ -18,14 +18,8 @@ interface Props {
   compact?: boolean
 }
 
-const DAY_ABBR = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function addDays(base: Date, n: number): Date {
-  const d = new Date(base)
-  d.setDate(d.getDate() + n)
-  return d
-}
 
 function formatTimeParts(iso: string): { hhmm: string; ampm: string } {
   const d = new Date(iso)
@@ -57,17 +51,9 @@ function TimeCell({ iso }: { iso: string }) {
 
 export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   const router = useRouter()
-  const monday = new Date(weekStart + 'T00:00:00')
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(monday, i)
-    const iso = toISODate(d)
-    return {
-      iso,
-      label: `${DAY_ABBR[i]} ${MONTH_ABBR[d.getMonth()]} ${d.getDate()}`,
-      isWeekend: i >= 5,
-    }
-  })
+  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  const periodDates = getPeriodDates(periodStart)
 
   const byDate: Record<string, ClockSessionRow[]> = {}
   for (const s of sessions) {
@@ -75,7 +61,6 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     byDate[s.date].push(s)
   }
 
-  // Default all days to collapsed
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   function toggleDay(iso: string) {
     setExpanded(prev => {
@@ -86,20 +71,20 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     })
   }
 
-  function navigateWeek(offset: number) {
-    const next = toISODate(offsetWeek(monday, offset))
+  function navigatePeriod(offset: number) {
+    const next = toISODate(offsetPeriod(periodStart, offset))
     router.push(`/dashboard?week=${next}`)
   }
 
-  const weekTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+  const periodTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
 
-  const colSpan = compact ? 4 : 5
+  const ROW_PY = 'py-2.5'
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
         <button
-          onClick={() => navigateWeek(-1)}
+          onClick={() => navigatePeriod(-1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
         >
           &larr; Prev
@@ -108,15 +93,15 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
         <div className="flex items-center gap-8">
           <div className="text-center">
             <p className="text-2xl font-bold text-slate-800 leading-none">
-              {fmtHrs(weekTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
+              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
             </p>
             <p className="text-xs text-slate-400 mt-0.5">Total</p>
           </div>
-          <span className="text-sm font-semibold text-slate-600">{formatWeekRange(monday)}</span>
+          <span className="text-sm font-semibold text-slate-600">{formatPeriodRange(periodStart)}</span>
         </div>
 
         <button
-          onClick={() => navigateWeek(1)}
+          onClick={() => navigatePeriod(1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
         >
           Next &rarr;
@@ -137,11 +122,12 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
           </thead>
 
           <tbody>
-            {weekDays.map(day => {
-              const daySessions = byDate[day.iso] ?? []
+            {periodDates.map(date => {
+              const iso = toISODate(date)
+              const daySessions = byDate[iso] ?? []
               const hasEntries = daySessions.length > 0
-              const isWeekend = day.isWeekend
-              const isExpanded = expanded.has(day.iso)
+              const isWeekend = date.getDay() === 0 || date.getDay() === 6
+              const isExpanded = expanded.has(iso)
 
               const firstIn = hasEntries ? daySessions[0].clockedInAt : null
               const lastOut = hasEntries
@@ -150,18 +136,19 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
               const anyInProgress = hasEntries && daySessions.some(s => s.clockedOutAt === null)
               const dayTotal = daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
 
+              const dayLabel = `${DAY_ABBR[date.getDay()]} ${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`
+
               return [
                 <tr
-                  key={`hdr-${day.iso}`}
+                  key={`hdr-${iso}`}
                   className={[
                     'border-t border-slate-200',
                     isWeekend ? 'bg-slate-50/60' : 'bg-white hover:bg-slate-50/40',
                     hasEntries ? 'cursor-pointer' : '',
                   ].join(' ')}
-                  onClick={() => hasEntries && toggleDay(day.iso)}
+                  onClick={() => hasEntries && toggleDay(iso)}
                 >
-                  {/* Chevron */}
-                  <td className="px-2 py-2.5 text-center">
+                  <td className={`px-2 ${ROW_PY} text-center`}>
                     {hasEntries && (
                       <svg
                         className={`w-3.5 h-3.5 text-slate-400 transition-transform mx-auto ${isExpanded ? '' : '-rotate-90'}`}
@@ -172,15 +159,14 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                     )}
                   </td>
 
-                  {/* Date */}
-                  <td className="px-3 py-2.5">
+                  <td className={`px-3 ${ROW_PY}`}>
                     <p className={`font-semibold text-sm ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
-                      {day.label}
+                      {dayLabel}
                     </p>
                   </td>
 
-                  {/* In */}
-                  <td className="px-3 py-2.5">
+                  {/* In — always first clock-in time */}
+                  <td className={`px-3 ${ROW_PY}`}>
                     {firstIn ? (
                       <TimeCell iso={firstIn} />
                     ) : (
@@ -188,19 +174,18 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                     )}
                   </td>
 
-                  {/* Out */}
-                  <td className="px-3 py-2.5">
-                    {lastOut ? (
-                      <TimeCell iso={lastOut} />
-                    ) : anyInProgress ? (
+                  {/* Out — last clock-out, or "Currently Clocked In" if active */}
+                  <td className={`px-3 ${ROW_PY}`}>
+                    {anyInProgress ? (
                       <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                    ) : lastOut ? (
+                      <TimeCell iso={lastOut} />
                     ) : (
                       <span className="text-sm text-slate-300">—</span>
                     )}
                   </td>
 
-                  {/* Total */}
-                  <td className="px-3 py-2.5 text-right">
+                  <td className={`px-3 ${ROW_PY} text-right`}>
                     {hasEntries ? (
                       <span className={`text-sm font-semibold ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>
                         {fmtHrs(dayTotal)} hrs
@@ -213,7 +198,6 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                   {!compact && <td />}
                 </tr>,
 
-                /* Expanded session rows */
                 ...(hasEntries && isExpanded
                   ? daySessions.map(s => {
                       const inParts = formatTimeParts(s.clockedInAt)
@@ -223,10 +207,10 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                       return (
                         <tr key={s.id} className="border-t border-slate-100 bg-slate-50/40">
                           <td />
-                          <td className="px-3 py-2 pl-8 text-xs text-slate-400 italic">session</td>
+                          <td className={`px-3 ${ROW_PY} pl-8 text-xs text-slate-400 italic`}>session</td>
 
                           {/* In */}
-                          <td className="px-3 py-2">
+                          <td className={`px-3 ${ROW_PY}`}>
                             <div className="flex items-center gap-1">
                               <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
                                 {inParts.hhmm}
@@ -236,7 +220,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                           </td>
 
                           {/* Out */}
-                          <td className="px-3 py-2">
+                          <td className={`px-3 ${ROW_PY}`}>
                             {outParts ? (
                               <div className="flex items-center gap-1">
                                 <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
@@ -251,15 +235,14 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                             )}
                           </td>
 
-                          {/* Total */}
-                          <td className="px-3 py-2 text-right">
+                          <td className={`px-3 ${ROW_PY} text-right`}>
                             <span className="text-xs text-slate-500">
                               {s.hours !== null ? `${fmtHrs(s.hours)} hrs` : '—'}
                             </span>
                           </td>
 
                           {!compact && (
-                            <td className="px-2 py-2 text-center">
+                            <td className={`px-2 ${ROW_PY} text-center`}>
                               <button className="text-slate-300 hover:text-slate-500 transition-colors">
                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
@@ -277,11 +260,11 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
           <tfoot>
             <tr className="border-t-2 border-slate-300 bg-slate-50">
-              <td colSpan={colSpan - 1} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Week Total
+              <td colSpan={4} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Period Total
               </td>
               <td className="px-3 py-2.5 text-right text-sm font-bold text-slate-800">
-                {fmtHrs(weekTotal)} hrs
+                {fmtHrs(periodTotal)} hrs
               </td>
               {!compact && <td />}
             </tr>

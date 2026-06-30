@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
+import { getPeriodStart, getPeriodDates, offsetPeriod, formatPeriodRange, toISODate } from '@/lib/dates'
 import { ClockSessionRow } from '@/components/TimeSheet'
 
 interface Props {
@@ -34,19 +34,19 @@ function fmt(n: number): string {
 
 export default function PayStub({ weekStart, userName, userEmail, hourlyWage, sessions }: Props) {
   const router = useRouter()
-  const monday = new Date(weekStart + 'T00:00:00')
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
+  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  const periodDates = getPeriodDates(periodStart)
+  const periodEnd = periodDates[periodDates.length - 1]
 
   const completedSessions = sessions.filter(s => s.clockedOutAt !== null)
   const totalHours = completedSessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
   const grossPay = totalHours * hourlyWage
 
-  const periodLabel = formatWeekRange(monday)
-  const checkDate = sunday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const periodLabel = formatPeriodRange(periodStart)
+  const checkDate = periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
   function navigateWeek(offset: number) {
-    const next = toISODate(offsetWeek(monday, offset))
+    const next = toISODate(offsetPeriod(periodStart, offset))
     router.push(`/dashboard?week=${next}`)
   }
 
