@@ -282,6 +282,14 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
             )}
           </div>
         </div>
+        <div className="flex gap-3 mt-4">
+          <button className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50" style={{ borderColor: '#0B1460', color: '#0B1460' }}>
+            Request Time Off
+          </button>
+          <button className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50" style={{ borderColor: '#0B1460', color: '#0B1460' }}>
+            Add Note
+          </button>
+        </div>
       </div>
     </div>
   )
