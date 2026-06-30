@@ -184,70 +184,85 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
       <div className="flex flex-col items-center justify-center py-10 flex-1 min-w-0">
         <AnalogClock now={now} />
 
-        {/* Digital time — greyed when clocked out */}
-        <div className={`mt-5 mb-1 text-center transition-opacity ${isClockedIn ? 'opacity-100' : 'opacity-40'}`}>
-          <p className="text-4xl font-mono font-semibold text-slate-800 tabular-nums tracking-wide">
-            {localTime || ' '}
-          </p>
-          {timezone && (
-            <p className="text-xs text-slate-400 mt-0.5 tracking-wide">{timezone}</p>
-          )}
-        </div>
-
-        {/* Status line */}
-        <div className="mt-4 mb-2 min-h-[1.5rem] text-center">
-          {isClockedIn ? (
-            <p className="text-sm text-slate-600">
-              Clocked In on{' '}
-              <span className="font-semibold text-green-600">
-                {formatDateTime(session!.clockedInAt)}
-              </span>
-            </p>
-          ) : clockedOutAt ? (
-            <p className="text-sm font-semibold text-red-500">
-              Clocked out on {formatDateTime(clockedOutAt)}
-            </p>
-          ) : null}
-        </div>
-
-        {/* Elapsed timer — only visible when clocked in */}
-        {isClockedIn && (
-          <div className="flex flex-col items-center mt-3 mb-7">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
-              Time Logged
-            </p>
-            <p className="text-3xl font-mono text-slate-500 tabular-nums">
-              {elapsed}
-            </p>
-          </div>
-        )}
-
-        {!isClockedIn && <div className="mb-7 mt-3 h-[68px]" />}
-
-        {error && (
-          <p className="mb-3 text-xs text-red-600 font-medium text-center max-w-xs">
-            {error}
-          </p>
-        )}
-
-        {/* Action button */}
         {isClockedIn ? (
-          <button
-            onClick={handleClockOut}
-            disabled={loading}
-            className="rounded-full bg-red-500 px-14 py-3.5 text-base font-semibold text-white shadow-md hover:bg-red-600 disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Saving…' : 'Clock Out'}
-          </button>
+          <>
+            <div className="mt-5 mb-1 text-center">
+              <p className="text-4xl font-mono font-semibold text-slate-800 tabular-nums tracking-wide">
+                {localTime || ' '}
+              </p>
+              {timezone && (
+                <p className="text-xs text-slate-400 mt-0.5 tracking-wide">{timezone}</p>
+              )}
+            </div>
+
+            <div className="mt-4 mb-2 text-center">
+              <p className="text-sm text-slate-600">
+                Clocked In on{' '}
+                <span className="font-semibold text-green-600">
+                  {formatDateTime(session!.clockedInAt)}
+                </span>
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center mt-3 mb-7">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
+                Time Logged
+              </p>
+              <p className="text-3xl font-mono text-slate-500 tabular-nums">
+                {elapsed}
+              </p>
+            </div>
+
+            {error && (
+              <p className="mb-3 text-xs text-red-600 font-medium text-center max-w-xs">
+                {error}
+              </p>
+            )}
+
+            <button
+              onClick={handleClockOut}
+              disabled={loading}
+              className="rounded-full bg-red-500 px-14 py-3.5 text-base font-semibold text-white shadow-md hover:bg-red-600 disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Saving...' : 'Clock Out'}
+            </button>
+          </>
         ) : (
-          <button
-            onClick={handleClockIn}
-            disabled={loading}
-            style={{ backgroundColor: '#0B1460' }}
-            className="rounded-full px-14 py-3.5 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
-          >
-            {loading ? 'Starting…' : 'Clock In'}
-          </button>
+          <>
+            {error && (
+              <p className="mt-4 text-xs text-red-600 font-medium text-center max-w-xs">
+                {error}
+              </p>
+            )}
+
+            <div className="mt-6 mb-5">
+              <button
+                onClick={handleClockIn}
+                disabled={loading}
+                style={{ backgroundColor: '#0B1460' }}
+                className="rounded-full px-14 py-3.5 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {loading ? 'Starting...' : 'Clock In'}
+              </button>
+            </div>
+
+            <div className="mb-1 text-center opacity-40">
+              <p className="text-4xl font-mono font-semibold text-slate-800 tabular-nums tracking-wide">
+                {localTime || ' '}
+              </p>
+              {timezone && (
+                <p className="text-xs text-slate-400 mt-0.5 tracking-wide">{timezone}</p>
+              )}
+            </div>
+
+            {clockedOutAt && (
+              <div className="mt-3 text-center">
+                <p className="text-sm font-semibold text-red-500">
+                  Clocked out on {formatDateTime(clockedOutAt)}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -258,7 +273,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
         </h3>
         <div className="rounded-2xl border-2 border-indigo-900/80 bg-white overflow-auto max-h-[560px] p-2">
           {weekStart && clockSessionRows ? (
-            <TimeSheet weekStart={weekStart} sessions={clockSessionRows} />
+            <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
           ) : (
             <div className="h-64 flex items-center justify-center text-sm text-slate-400">
               No data

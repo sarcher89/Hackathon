@@ -15,6 +15,7 @@ export interface ClockSessionRow {
 interface Props {
   weekStart: string
   sessions: ClockSessionRow[]
+  compact?: boolean
 }
 
 const DAY_ABBR = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
@@ -42,7 +43,7 @@ function fmtHrs(n: number): string {
   return n.toFixed(2)
 }
 
-export default function TimeSheet({ weekStart, sessions }: Props) {
+export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   const router = useRouter()
   const monday = new Date(weekStart + 'T00:00:00')
 
@@ -113,13 +114,10 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
               <th className="w-8 px-2 py-2.5" />
               <th className="px-3 py-2.5 text-left min-w-[148px]">Date</th>
-              <th className="w-8 px-1 py-2.5" />
-              <th className="w-7 px-1 py-2.5" />
               <th className="px-3 py-2.5 text-left min-w-[110px]">From</th>
               <th className="px-3 py-2.5 text-left min-w-[110px]">To</th>
-              <th className="px-3 py-2.5 text-right w-24">Raw Total</th>
-              <th className="px-3 py-2.5 text-right w-24">Calc. Total</th>
-              <th className="w-10 px-2 py-2.5 text-center">Notes</th>
+              <th className="px-3 py-2.5 text-right w-24">Total</th>
+              {!compact && <th className="w-10 px-2 py-2.5 text-center">Notes</th>}
             </tr>
           </thead>
 
@@ -163,59 +161,24 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
                     <p className={`font-semibold text-sm ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
                       {day.label}
                     </p>
-                    {!isWeekend && (
-                      <p className="text-xs text-blue-400 mt-0.5">No Schedule</p>
-                    )}
-                  </td>
-
-                  {/* Clock icon */}
-                  <td className="px-1 py-2.5 text-center">
-                    {hasEntries && (
-                      <svg className="w-4 h-4 text-slate-400 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M12 7v5l3 3" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </td>
-
-                  {/* Add (+) */}
-                  <td className="px-1 py-2.5 text-center">
-                    {!isWeekend && (
-                      <button className="w-5 h-5 rounded-full border border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 flex items-center justify-center mx-auto transition-colors text-xs leading-none">
-                        +
-                      </button>
-                    )}
                   </td>
 
                   {/* From / To — empty on header */}
                   <td className="px-3 py-2.5" />
                   <td className="px-3 py-2.5" />
 
-                  {/* Raw Total */}
+                  {/* Total */}
                   <td className="px-3 py-2.5 text-right">
-                    {hasEntries && (
+                    {hasEntries ? (
                       <span className={`text-sm font-semibold ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>
                         {fmtHrs(dayTotal)} hrs
                       </span>
-                    )}
-                    {!hasEntries && (
-                      <span className="text-sm text-slate-300">0.00 hrs</span>
-                    )}
-                  </td>
-
-                  {/* Calc. Total */}
-                  <td className="px-3 py-2.5 text-right">
-                    {hasEntries && (
-                      <span className={`text-sm font-semibold ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>
-                        {fmtHrs(dayTotal)} hrs
-                      </span>
-                    )}
-                    {!hasEntries && (
-                      <span className="text-sm text-slate-300">0.00 hrs</span>
+                    ) : (
+                      <span className="text-sm text-slate-300">—</span>
                     )}
                   </td>
 
-                  <td />
+                  {!compact && <td />}
                 </tr>,
 
                 /* Entry rows */
@@ -226,18 +189,8 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
 
                       return (
                         <tr key={s.id} className="border-t border-slate-100 bg-white hover:bg-slate-50/50">
-                          {/* indent */}
                           <td />
-                          {/* empty date col */}
                           <td className="px-3 py-2" />
-                          {/* clock icon */}
-                          <td className="px-1 py-2 text-center">
-                            <svg className="w-3.5 h-3.5 text-slate-300 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="M12 7v5l3 3" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </td>
-                          <td />
 
                           {/* From */}
                           <td className="px-3 py-2">
@@ -245,9 +198,7 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
                               <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
                                 {inParts.hhmm}
                               </span>
-                              <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500">
-                                {inParts.ampm}
-                              </span>
+                              <span className="text-xs text-slate-400">{inParts.ampm}</span>
                             </div>
                           </td>
 
@@ -258,37 +209,30 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
                                 <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 min-w-[46px] text-center">
                                   {outParts.hhmm}
                                 </span>
-                                <span className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500">
-                                  {outParts.ampm}
-                                </span>
+                                <span className="text-xs text-slate-400">{outParts.ampm}</span>
                               </div>
                             ) : (
                               <span className="text-xs text-blue-500 font-medium">In progress</span>
                             )}
                           </td>
 
-                          {/* Raw Total */}
+                          {/* Total */}
                           <td className="px-3 py-2 text-right">
                             <span className="text-xs text-slate-600">
-                              {s.hours !== null ? fmtHrs(s.hours) : '—'}
-                            </span>
-                          </td>
-
-                          {/* Calc. Total */}
-                          <td className="px-3 py-2 text-right">
-                            <span className="text-xs text-slate-600">
-                              {s.hours !== null ? fmtHrs(s.hours) : '—'}
+                              {s.hours !== null ? `${fmtHrs(s.hours)} hrs` : '—'}
                             </span>
                           </td>
 
                           {/* Notes */}
-                          <td className="px-2 py-2 text-center">
-                            <button className="text-slate-300 hover:text-slate-500 transition-colors">
-                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                          </td>
+                          {!compact && (
+                            <td className="px-2 py-2 text-center">
+                              <button className="text-slate-300 hover:text-slate-500 transition-colors">
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       )
                     })
@@ -300,16 +244,13 @@ export default function TimeSheet({ weekStart, sessions }: Props) {
           {/* Week total footer */}
           <tfoot>
             <tr className="border-t-2 border-slate-300 bg-slate-50">
-              <td colSpan={6} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <td colSpan={4} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Week Total
               </td>
               <td className="px-3 py-2.5 text-right text-sm font-bold text-slate-800">
                 {fmtHrs(weekTotal)} hrs
               </td>
-              <td className="px-3 py-2.5 text-right text-sm font-bold text-slate-800">
-                {fmtHrs(weekTotal)} hrs
-              </td>
-              <td />
+              {!compact && <td />}
             </tr>
           </tfoot>
         </table>
