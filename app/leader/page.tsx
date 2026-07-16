@@ -85,6 +85,10 @@ export default async function LeaderPage({
       .order('clocked_in_at'),
   ])
 
+  if (rowsRes.error) {
+    console.error('Payroll export query failed:', rowsRes.error.message)
+  }
+
   const users: User[] = (usersRes.data ?? []) as User[]
   const clients: Client[] = clientsRes.data ?? []
   const projects: Project[] = projectsRes.data ?? []
@@ -146,6 +150,12 @@ export default async function LeaderPage({
           Hello, {(user.full_name || user.email).split(' ')[0]}
         </h2>
       </div>
+
+      {rowsRes.error && (
+        <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+          Failed to load payroll entries: {rowsRes.error.message}
+        </div>
+      )}
 
       <LeaderTabs
         weekStart={weekStart}
