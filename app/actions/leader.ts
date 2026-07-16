@@ -1,6 +1,6 @@
 'use server'
 
-import { createSupabaseServerClient } from '@/lib/supabase'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 
 export async function markEntriesExported(entryIds: string[]): Promise<void> {
@@ -10,7 +10,7 @@ export async function markEntriesExported(entryIds: string[]): Promise<void> {
   const user = await getOrCreateUser(supabase)
   if (!user || (user.role !== 'leader' && user.role !== 'admin')) return
 
-  await supabase
+  await createSupabaseServiceClient()
     .from('time_entries')
     .update({ exported: true })
     .in('id', entryIds)

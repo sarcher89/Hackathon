@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createSupabaseServerClient } from '@/lib/supabase'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { getMondayOfWeek, getWeekDates, getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
 import { ExportEntry } from '@/components/LeaderGrid'
@@ -34,10 +34,15 @@ export default async function LeaderPage({
   const monday = getMondayOfWeek(periodStart)
   const dates = getWeekDates(monday).map(toISODate)
 
+  // time_entries RLS only allows a user to see their own rows, but this view
+  // needs every employee's entries — read with the service-role client now
+  // that the leader/admin check above has authorized the caller.
+  const serviceClient = createSupabaseServiceClient()
+
   // Fetch all data in parallel
   const [usersRes, rowsRes, clientsRes, projectsRes, tasksRes, myEntriesRes, clockRes, sessionsRes] = await Promise.all([
     supabase.from('users').select('*').order('full_name'),
-    supabase
+    serviceClient
       .from('time_entries')
       .select(`
         id,
