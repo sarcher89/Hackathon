@@ -58,7 +58,7 @@ export default async function LeaderPage({
       .gte('entry_date', dates[0])
       .lte('entry_date', dates[6])
       .order('entry_date')
-      .order('users.full_name'),
+      .order('full_name', { foreignTable: 'user' }),
     supabase.from('clients').select('*').eq('active', true).order('name'),
     supabase.from('projects').select('*').eq('active', true).order('name'),
     supabase.from('tasks').select('*').order('sort_order'),
