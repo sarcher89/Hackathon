@@ -1,6 +1,6 @@
 'use server'
 
-import { createSupabaseServerClient } from '@/lib/supabase'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 
 export async function updateUserProfile(
@@ -13,12 +13,14 @@ export async function updateUserProfile(
     return { success: false, error: 'Not authorized' }
   }
 
-  const { error } = await supabase
+  const { data, error } = await createSupabaseServiceClient()
     .from('users')
     .update(fields)
     .eq('id', userId)
+    .select('id')
 
   if (error) return { success: false, error: error.message }
+  if (!data || data.length === 0) return { success: false, error: 'User not found' }
   return { success: true }
 }
 
@@ -32,11 +34,13 @@ export async function setUserWage(
     return { success: false, error: 'Not authorized' }
   }
 
-  const { error } = await supabase
+  const { data, error } = await createSupabaseServiceClient()
     .from('users')
     .update({ hourly_wage: wage })
     .eq('id', userId)
+    .select('id')
 
   if (error) return { success: false, error: error.message }
+  if (!data || data.length === 0) return { success: false, error: 'User not found' }
   return { success: true }
 }
