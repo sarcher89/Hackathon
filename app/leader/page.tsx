@@ -50,13 +50,13 @@ export default async function LeaderPage({
         hours,
         notes,
         exported,
-        user:users!inner(full_name, email),
+        user:users!inner(id, full_name, email),
         client:clients!inner(name),
         project:projects(name),
         task:tasks!inner(name, category)
       `)
-      .gte('entry_date', dates[0])
-      .lte('entry_date', dates[6])
+      .gte('entry_date', periodDates[0])
+      .lte('entry_date', periodDates[periodDates.length - 1])
       .order('entry_date')
       .order('full_name', { foreignTable: 'user' }),
     supabase.from('clients').select('*').eq('active', true).order('name'),
@@ -98,6 +98,7 @@ export default async function LeaderPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const entries: ExportEntry[] = (rowsRes.data ?? []).map((r: any) => ({
     id: r.id,
+    userId: r.user?.id ?? '',
     userName: r.user?.full_name ?? r.user?.email ?? 'Unknown',
     userEmail: r.user?.email ?? '',
     date: r.entry_date,
@@ -160,6 +161,7 @@ export default async function LeaderPage({
       <LeaderTabs
         weekStart={weekStart}
         dates={dates}
+        periodDates={periodDates}
         entries={entries}
         users={users}
         clockSession={clockSession}

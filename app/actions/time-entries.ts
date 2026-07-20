@@ -2,6 +2,39 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
+import { getMondayOfWeek, formatWeekRange, toISODate } from '@/lib/dates'
+
+export interface MyWeekOption {
+  weekStart: string
+  label: string
+}
+
+export async function getMyProjectLogWeeks(): Promise<MyWeekOption[]> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('time_entries')
+    .select('entry_date')
+    .eq('user_id', user.id)
+    .order('entry_date')
+
+  if (error) return []
+
+  const weekStarts = new Set<string>()
+  weekStarts.add(toISODate(getMondayOfWeek(new Date())))
+  for (const row of data ?? []) {
+    weekStarts.add(toISODate(getMondayOfWeek(new Date(row.entry_date + 'T00:00:00'))))
+  }
+
+  return Array.from(weekStarts)
+    .sort((a, b) => b.localeCompare(a))
+    .map(weekStart => ({
+      weekStart,
+      label: formatWeekRange(new Date(weekStart + 'T00:00:00')),
+    }))
+}
 
 export async function saveTimeEntry({
   clientId,

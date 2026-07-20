@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { Client, Project, Task } from '@/types/database'
-import { saveTimeEntry, clearRowEntries } from '@/app/actions/time-entries'
-import { formatDayHeader, formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
+import { saveTimeEntry, clearRowEntries, getMyProjectLogWeeks, type MyWeekOption } from '@/app/actions/time-entries'
+import { formatDayHeader, formatWeekRange } from '@/lib/dates'
 import Combobox from '@/components/Combobox'
 
 interface GridRow {
@@ -59,12 +59,18 @@ export default function TimeGrid({
   initialRows,
 }: TimeGridProps) {
   const router = useRouter()
+  const pathname = usePathname()
 
   const [rows, setRows] = useState<GridRow[]>(
     initialRows.length > 0 ? initialRows : [emptyRow()]
   )
   const [saving, setSaving] = useState<Set<string>>(new Set())
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
+
+  const [weekOptions, setWeekOptions] = useState<MyWeekOption[]>([])
+  useEffect(() => {
+    getMyProjectLogWeeks().then(setWeekOptions)
+  }, [])
 
   const monday = new Date(weekStart + 'T00:00:00')
   const dayHeaders = dates.map(d => ({
@@ -162,9 +168,8 @@ export default function TimeGrid({
     }
   }
 
-  function navigateWeek(offset: number) {
-    const next = toISODate(offsetWeek(monday, offset))
-    router.push(`/dashboard?week=${next}`)
+  function handleWeekChange(next: string) {
+    router.push(`${pathname}?week=${next}`)
   }
 
   const dayTotals = dates.map(date =>
@@ -174,23 +179,25 @@ export default function TimeGrid({
 
   return (
     <div>
-      {/* Week navigation */}
+      {/* Week selector */}
       <div className="mb-4 flex items-center justify-between">
-        <button
-          onClick={() => navigateWeek(-1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+        <select
+          value={dates[0]}
+          onChange={e => handleWeekChange(e.target.value)}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
         >
-          ← Prev
-        </button>
+          {!weekOptions.some(w => w.weekStart === dates[0]) && (
+            <option value={dates[0]}>{formatWeekRange(monday)}</option>
+          )}
+          {weekOptions.map(w => (
+            <option key={w.weekStart} value={w.weekStart}>
+              {w.label}
+            </option>
+          ))}
+        </select>
         <span className="text-sm font-semibold text-slate-700">
           {formatWeekRange(monday)}
         </span>
-        <button
-          onClick={() => navigateWeek(1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-        >
-          Next →
-        </button>
       </div>
 
       {/* Grid */}
