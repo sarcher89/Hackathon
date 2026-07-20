@@ -26,6 +26,7 @@ interface GridRow {
   projectId: string | null
   taskId: string
   hours: Record<string, string>
+  notes: Record<string, string>
 }
 
 interface Props {

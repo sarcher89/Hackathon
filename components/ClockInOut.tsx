@@ -7,6 +7,7 @@ import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeOffModal from '@/components/TimeOffModal'
 import MyTimeOffSummary from '@/components/MyTimeOffSummary'
 import AttributeTimeModal from '@/components/AttributeTimeModal'
+import AddSessionNoteModal from '@/components/AddSessionNoteModal'
 import { Client, Project, Task } from '@/types/database'
 
 interface ClockSession {
@@ -153,6 +154,7 @@ export default function ClockInOut({
   const [showTimeOff, setShowTimeOff] = useState(false)
   const [timeOffRefreshKey, setTimeOffRefreshKey] = useState(0)
   const [attribution, setAttribution] = useState<{ date: string; hours: number } | null>(null)
+  const [showAddNote, setShowAddNote] = useState(false)
 
   useEffect(() => {
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -304,7 +306,7 @@ export default function ClockInOut({
           Time Sheet Preview
         </h3>
         <div className="rounded-2xl border-4 bg-white overflow-hidden" style={{ borderColor: '#0B1460' }}>
-          <div className="overflow-auto max-h-[560px] pt-6 px-2 pb-2">
+          <div className="overflow-auto max-h-[560px] pb-4">
             {weekStart && clockSessionRows ? (
               <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
             ) : (
@@ -337,7 +339,12 @@ export default function ClockInOut({
           >
             Request Time Off
           </button>
-          <button className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50" style={{ borderColor: '#0B1460', color: '#0B1460' }}>
+          <button
+            onClick={() => setShowAddNote(true)}
+            disabled={!clockSessionRows || clockSessionRows.length === 0}
+            className="flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ borderColor: '#0B1460', color: '#0B1460' }}
+          >
             Add Note
           </button>
         </div>
@@ -348,6 +355,17 @@ export default function ClockInOut({
           balances={balances}
           onClose={() => setShowTimeOff(false)}
           onSubmitted={() => setTimeOffRefreshKey(k => k + 1)}
+        />
+      )}
+
+      {showAddNote && clockSessionRows && (
+        <AddSessionNoteModal
+          sessions={clockSessionRows}
+          onClose={() => setShowAddNote(false)}
+          onSaved={() => {
+            setShowAddNote(false)
+            router.refresh()
+          }}
         />
       )}
 

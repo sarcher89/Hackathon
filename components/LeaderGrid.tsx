@@ -37,6 +37,7 @@ export interface ExportClockSession {
   clockedInAt: string
   clockedOutAt: string | null
   hours: number | null
+  notes: string | null
 }
 
 interface Props {
@@ -68,6 +69,25 @@ function formatHours(n: number): string {
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'employee'
+}
+
+interface TaskBreakdownRow {
+  clientName: string
+  projectName: string | null
+  taskName: string
+  hours: number
+}
+
+function buildTaskBreakdown(employeeEntries: ExportEntry[]): TaskBreakdownRow[] {
+  const map = new Map<string, TaskBreakdownRow>()
+  for (const e of employeeEntries) {
+    const key = `${e.clientName}|${e.projectName ?? ''}|${e.taskName}`
+    if (!map.has(key)) {
+      map.set(key, { clientName: e.clientName, projectName: e.projectName, taskName: e.taskName, hours: 0 })
+    }
+    map.get(key)!.hours += e.hours
+  }
+  return Array.from(map.values()).sort((a, b) => b.hours - a.hours)
 }
 
 export default function LeaderGrid({ weekStart, periodDates, entries, clockSessions }: Props) {
@@ -402,6 +422,52 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
                     {isExpanded && (
                       <tr className="bg-slate-50/70">
                         <td colSpan={columnCount} className="px-4 py-4">
+                          <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4">
+                            <h4 className="mb-3 text-sm font-semibold text-slate-700">
+                              Time by Task &amp; Client — {formatPeriodRange(periodStart)}
+                            </h4>
+                            {(() => {
+                              const breakdown = buildTaskBreakdown(entries.filter(e => e.userId === u.id))
+                              if (breakdown.length === 0) {
+                                return <p className="text-sm text-slate-400">No entries logged this pay period.</p>
+                              }
+                              return (
+                                <div className="overflow-x-auto rounded border border-slate-200">
+                                  <table className="min-w-full text-sm">
+                                    <thead>
+                                      <tr className="bg-slate-50 border-b border-slate-200">
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Client
+                                        </th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Project
+                                        </th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Task
+                                        </th>
+                                        <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Hours
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {breakdown.map(row => (
+                                        <tr key={`${row.clientName}|${row.projectName}|${row.taskName}`} className="hover:bg-slate-50/50">
+                                          <td className="px-3 py-2 text-sm text-slate-700">{row.clientName}</td>
+                                          <td className="px-3 py-2 text-sm text-slate-500">{row.projectName ?? '—'}</td>
+                                          <td className="px-3 py-2 text-sm text-slate-700">{row.taskName}</td>
+                                          <td className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
+                                            {formatHours(row.hours)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )
+                            })()}
+                          </div>
+
                           <div className="rounded-lg border border-slate-200 bg-white p-4">
                             <h4 className="mb-3 text-sm font-semibold text-slate-700">
                               Export pay periods for {u.name}

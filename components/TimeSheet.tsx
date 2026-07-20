@@ -6,6 +6,7 @@ import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/
 import { getMyPayPeriods, type MyPayPeriodOption } from '@/app/actions/clock'
 import { getMyTimeOffRequests, type MyTimeOffRequest } from '@/app/actions/timeoff'
 import { TIME_OFF_TYPE_LABEL } from '@/lib/timeoff'
+import AddSessionNoteModal from '@/components/AddSessionNoteModal'
 
 export interface ClockSessionRow {
   id: string
@@ -13,6 +14,7 @@ export interface ClockSessionRow {
   clockedInAt: string
   clockedOutAt: string | null
   hours: number | null
+  notes: string | null
 }
 
 interface Props {
@@ -83,6 +85,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   }
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [noteSessionId, setNoteSessionId] = useState<string | null>(null)
   function toggleDay(iso: string) {
     setExpanded(prev => {
       const next = new Set(prev)
@@ -107,10 +110,21 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-white mb-4 flex items-center justify-between px-1 py-2 border-b border-slate-100">
-        {compact ? (
-          <span className="text-sm font-semibold text-slate-600">{formatPeriodRange(periodStart)}</span>
-        ) : (
+      {compact ? (
+        <div
+          className="sticky top-0 z-10 mb-4 flex items-center justify-between px-4 py-5"
+          style={{ backgroundColor: '#0B1460' }}
+        >
+          <span className="text-sm font-semibold text-white">{formatPeriodRange(periodStart)}</span>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-white leading-none">
+              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-white/70">hrs</span>
+            </p>
+            <p className="text-xs text-white/60 mt-0.5">Total</p>
+          </div>
+        </div>
+      ) : (
+        <div className="sticky top-0 z-10 bg-white mb-4 flex items-center justify-between px-1 py-2 border-b border-slate-100">
           <select
             value={toISODate(periodStart)}
             onChange={e => handlePeriodChange(e.target.value)}
@@ -125,16 +139,17 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
               </option>
             ))}
           </select>
-        )}
 
-        <div className="text-center">
-          <p className="text-2xl font-bold text-slate-800 leading-none">
-            {fmtHrs(periodTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">Total</p>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-slate-800 leading-none">
+              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">Total</p>
+          </div>
         </div>
-      </div>
+      )}
 
+      <div className={compact ? 'px-2' : ''}>
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
         <table className="min-w-full text-sm border-collapse">
           <thead>
@@ -286,8 +301,12 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
                           {!compact && (
                             <td className={`px-2 ${ROW_PY} text-center`}>
-                              <button className="text-slate-300 hover:text-slate-500 transition-colors">
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                              <button
+                                onClick={() => setNoteSessionId(s.id)}
+                                title={s.notes ?? 'Add note'}
+                                className={s.notes ? 'text-blue-500 hover:text-blue-700 transition-colors' : 'text-slate-300 hover:text-slate-500 transition-colors'}
+                              >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={s.notes ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.75">
                                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
                                 </svg>
                               </button>
@@ -314,6 +333,19 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
           </tfoot>
         </table>
       </div>
+      </div>
+
+      {noteSessionId && (
+        <AddSessionNoteModal
+          sessions={sessions}
+          preselectedSessionId={noteSessionId}
+          onClose={() => setNoteSessionId(null)}
+          onSaved={() => {
+            setNoteSessionId(null)
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

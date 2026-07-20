@@ -51,7 +51,7 @@ export default async function DashboardPage({
       .maybeSingle(),
     supabase
       .from('clock_sessions')
-      .select('id, entry_date, clocked_in_at, clocked_out_at, hours')
+      .select('id, entry_date, clocked_in_at, clocked_out_at, hours, notes')
       .eq('user_id', user.id)
       .gte('entry_date', periodDates[0])
       .lte('entry_date', periodDates[periodDates.length - 1])
@@ -69,6 +69,7 @@ export default async function DashboardPage({
     clockedInAt: s.clocked_in_at,
     clockedOutAt: s.clocked_out_at,
     hours: s.hours,
+    notes: s.notes,
   }))
 
   // Index projects by client
@@ -81,7 +82,7 @@ export default async function DashboardPage({
   // Group entries into grid rows
   const rowMap = new Map<
     string,
-    { clientId: string; projectId: string | null; taskId: string; hours: Record<string, string> }
+    { clientId: string; projectId: string | null; taskId: string; hours: Record<string, string>; notes: Record<string, string> }
   >()
   for (const entry of entries) {
     const key = `${entry.client_id}|${entry.project_id ?? ''}|${entry.task_id}`
@@ -91,9 +92,11 @@ export default async function DashboardPage({
         projectId: entry.project_id,
         taskId: entry.task_id,
         hours: {},
+        notes: {},
       })
     }
     rowMap.get(key)!.hours[entry.entry_date] = String(entry.hours)
+    if (entry.notes) rowMap.get(key)!.notes[entry.entry_date] = entry.notes
   }
 
   const initialRows = Array.from(rowMap.entries()).map(([key, row]) => ({

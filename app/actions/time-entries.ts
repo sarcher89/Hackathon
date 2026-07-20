@@ -42,12 +42,14 @@ export async function saveTimeEntry({
   taskId,
   date,
   hours,
+  notes,
 }: {
   clientId: string
   projectId: string | null
   taskId: string
   date: string
   hours: number
+  notes?: string | null
 }): Promise<{ success: true; id: string | null } | { success: false; error: string }> {
   const supabase = createSupabaseServerClient()
   const user = await getOrCreateUser(supabase)
@@ -83,9 +85,15 @@ export async function saveTimeEntry({
     : selectBase.is('project_id', null).maybeSingle())
 
   if (existing) {
+    const updatePayload: { hours: number; exported: boolean; notes?: string | null } = {
+      hours,
+      exported: false,
+    }
+    if (notes !== undefined) updatePayload.notes = notes || null
+
     const { data, error } = await supabase
       .from('time_entries')
-      .update({ hours, exported: false })
+      .update(updatePayload)
       .eq('id', existing.id)
       .select('id')
       .single()
@@ -104,6 +112,7 @@ export async function saveTimeEntry({
       entry_date: date,
       hours,
       exported: false,
+      notes: notes || null,
     })
     .select('id')
     .single()
