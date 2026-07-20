@@ -3,6 +3,7 @@
 import ExcelJS from 'exceljs'
 import type { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
 import { roundToQuarterHour } from '@/lib/dates'
+import { TIME_OFF_CLIENT_NAME } from '@/lib/timeoff'
 
 const NAVY = 'FF0B1460'
 const HEADER_TEXT = 'FFFFFFFF'
@@ -58,6 +59,12 @@ function sumSessions(sessions: ExportClockSession[]): number {
   // Round each session to the nearest 15 minutes before summing so the
   // comparison against task-logged hours doesn't show stray minutes.
   return Math.round(sessions.reduce((s, sess) => s + roundToQuarterHour(sess.hours ?? 0), 0) * 100) / 100
+}
+
+function sumTimeOff(entries: ExportEntry[]): number {
+  return Math.round(
+    entries.filter(e => e.clientName === TIME_OFF_CLIENT_NAME).reduce((s, e) => s + e.hours, 0) * 100
+  ) / 100
 }
 
 function sanitizeSheetName(name: string, used: Set<string>): string {
@@ -185,23 +192,28 @@ function buildEmployeeSheet(
       rowIndex++
     }
 
-    // Day total — sits above the Task Log detail so it reads right after
-    // the clock times it reconciles against.
+    // Total hours clocked — sits directly under Clock Sessions, so its
+    // subtotal reads right below the times it's summarizing. Time off has
+    // no clock session (there's nothing to clock in/out of), so it's
+    // folded in here too — otherwise a vacation day would show 0h clocked.
+    const dayTimeOffHours = sumTimeOff(dayEntries)
     sheet.mergeCells(rowIndex, 1, rowIndex, 4)
-    const dayTotalLabel = sheet.getCell(rowIndex, 1)
-    dayTotalLabel.value = `Day Total (Clocked: ${sumSessions(daySessions)}h)`
-    dayTotalLabel.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
-    dayTotalLabel.alignment = { horizontal: 'right' }
+    const clockedTotalLabel = sheet.getCell(rowIndex, 1)
+    clockedTotalLabel.value = dayTimeOffHours > 0
+      ? `Total Hours Clocked (incl. ${dayTimeOffHours}h time off)`
+      : 'Total Hours Clocked'
+    clockedTotalLabel.font = { bold: true, color: { argb: CLOCK_ACCENT_TEXT } }
+    clockedTotalLabel.alignment = { horizontal: 'right' }
 
-    const dayTotalHours = sheet.getCell(rowIndex, 5)
-    dayTotalHours.value = sumEntries(dayEntries)
-    dayTotalHours.numFmt = '0.00'
-    dayTotalHours.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
-    dayTotalHours.alignment = { horizontal: 'center' }
+    const clockedTotalHours = sheet.getCell(rowIndex, 5)
+    clockedTotalHours.value = Math.round((sumSessions(daySessions) + dayTimeOffHours) * 100) / 100
+    clockedTotalHours.numFmt = '0.00'
+    clockedTotalHours.font = { bold: true, color: { argb: CLOCK_ACCENT_TEXT } }
+    clockedTotalHours.alignment = { horizontal: 'center' }
 
     for (let i = 1; i <= columnCount; i++) {
       const cell = sheet.getCell(rowIndex, i)
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAY_TOTAL_FILL } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CLOCK_HEADER_FILL } }
       cell.border = ALL_BORDERS
     }
     rowIndex++
@@ -241,6 +253,27 @@ function buildEmployeeSheet(
       noneCell.font = { italic: true, size: 9, color: { argb: NOTE_TEXT } }
       rowIndex++
     }
+
+    // Day total — sits directly under Task Log, so its subtotal reads
+    // right below the entries it's summarizing.
+    sheet.mergeCells(rowIndex, 1, rowIndex, 4)
+    const dayTotalLabel = sheet.getCell(rowIndex, 1)
+    dayTotalLabel.value = 'Day Total'
+    dayTotalLabel.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
+    dayTotalLabel.alignment = { horizontal: 'right' }
+
+    const dayTotalHours = sheet.getCell(rowIndex, 5)
+    dayTotalHours.value = sumEntries(dayEntries)
+    dayTotalHours.numFmt = '0.00'
+    dayTotalHours.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
+    dayTotalHours.alignment = { horizontal: 'center' }
+
+    for (let i = 1; i <= columnCount; i++) {
+      const cell = sheet.getCell(rowIndex, i)
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAY_TOTAL_FILL } }
+      cell.border = ALL_BORDERS
+    }
+    rowIndex++
 
     rowIndex++ // spacer row between dates
   }
