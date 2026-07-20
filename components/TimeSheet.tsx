@@ -112,15 +112,20 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     <div>
       {compact ? (
         <div
-          className="sticky top-0 z-10 mb-4 flex items-center justify-between px-4 py-5"
+          className="sticky top-0 z-10 mb-4 px-4 py-5"
           style={{ backgroundColor: '#0B1460' }}
         >
-          <span className="text-sm font-semibold text-white">{formatPeriodRange(periodStart)}</span>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white leading-none">
-              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-white/70">hrs</span>
-            </p>
-            <p className="text-xs text-white/60 mt-0.5">Total</p>
+          <p className="text-center text-[10px] font-bold uppercase tracking-widest text-white/60 mb-2">
+            Time Sheet Preview
+          </p>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-white">{formatPeriodRange(periodStart)}</span>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-white leading-none">
+                {fmtHrs(periodTotal)} <span className="text-base font-semibold text-white/70">hrs</span>
+              </p>
+              <p className="text-xs text-white/60 mt-0.5">Total</p>
+            </div>
           </div>
         </div>
       ) : (

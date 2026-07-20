@@ -4,6 +4,38 @@ import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
 
+type SupabaseServerClient = ReturnType<typeof createSupabaseServerClient>
+
+// If a user is still clocked in from a previous calendar day (e.g. they forgot
+// to clock out, or left a session open overnight), close it out at the end of
+// that day rather than letting it silently bleed hours into the next day and
+// overlap with a fresh clock-in. Called defensively before clocking in and on
+// page load so a stale session never lingers past midnight.
+export async function autoCloseStaleSession(supabase: SupabaseServerClient, userId: string): Promise<void> {
+  const { data: session } = await supabase
+    .from('clock_sessions')
+    .select('id, clocked_in_at, entry_date')
+    .eq('user_id', userId)
+    .is('clocked_out_at', null)
+    .maybeSingle()
+
+  if (!session) return
+
+  const todayIso = toISODate(new Date())
+  if (session.entry_date >= todayIso) return
+
+  const endOfDay = new Date(session.entry_date + 'T23:59:59.999')
+  const clockedInAt = new Date(session.clocked_in_at)
+  const rawMinutes = (endOfDay.getTime() - clockedInAt.getTime()) / 60000
+  const roundedMinutes = Math.max(0, Math.round(rawMinutes / 15) * 15)
+  const hours = Math.round((roundedMinutes / 60) * 100) / 100
+
+  await supabase
+    .from('clock_sessions')
+    .update({ clocked_out_at: endOfDay.toISOString(), hours })
+    .eq('id', session.id)
+}
+
 export interface MyPayPeriodOption {
   periodStart: string
   label: string
@@ -43,6 +75,8 @@ export async function clockIn(): Promise<{
   const supabase = createSupabaseServerClient()
   const user = await getOrCreateUser(supabase)
   if (!user) return { session: null, error: 'Not authenticated' }
+
+  await autoCloseStaleSession(supabase, user.id)
 
   const now = new Date()
 

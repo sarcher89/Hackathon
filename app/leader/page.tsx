@@ -5,6 +5,7 @@ import { getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
 import { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
 import LeaderTabs from '@/components/LeaderTabs'
 import { Client, Project, Task, TimeEntry, User } from '@/types/database'
+import { autoCloseStaleSession } from '@/app/actions/clock'
 
 export default async function LeaderPage({
   searchParams,
@@ -20,6 +21,8 @@ export default async function LeaderPage({
 
   const user = await getOrCreateUser(supabase)
   if (!user || (user.role !== 'leader' && user.role !== 'admin')) redirect('/dashboard')
+
+  await autoCloseStaleSession(supabase, user.id)
 
   // Resolve period (1st–15th or 16th–end of month)
   const weekParam = searchParams.week

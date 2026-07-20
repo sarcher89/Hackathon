@@ -4,6 +4,7 @@ import { getOrCreateUser } from '@/lib/auth'
 import { getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
 import { Client, Project, Task, TimeEntry } from '@/types/database'
 import DashboardTabs from '@/components/DashboardTabs'
+import { autoCloseStaleSession } from '@/app/actions/clock'
 
 export default async function DashboardPage({
   searchParams,
@@ -20,6 +21,8 @@ export default async function DashboardPage({
   const user = await getOrCreateUser(supabase)
   if (!user) redirect('/login')
   if (user.role === 'leader' || user.role === 'admin') redirect('/leader')
+
+  await autoCloseStaleSession(supabase, user.id)
 
   // Resolve period (1st–15th or 16th–end of month)
   const weekParam = searchParams.week
