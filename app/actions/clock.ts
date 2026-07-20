@@ -79,8 +79,8 @@ export async function clockOut(
   const clockedOutAt = new Date()
   const clockedInAt = new Date(session.clocked_in_at)
   const rawMinutes = (clockedOutAt.getTime() - clockedInAt.getTime()) / 60000
-  const minutes = Math.round(rawMinutes)
-  const hours = Math.round((minutes / 60) * 100) / 100
+  const roundedMinutes = Math.round(rawMinutes / 15) * 15
+  const hours = Math.round((roundedMinutes / 60) * 100) / 100
 
   const { error } = await supabase
     .from('clock_sessions')

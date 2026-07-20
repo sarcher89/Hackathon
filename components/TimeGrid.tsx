@@ -142,7 +142,7 @@ export default function TimeGrid({
     if (!row?.clientId || !row.taskId) return
 
     const raw = row.hours[date] ?? ''
-    const hours = Math.max(0, parseFloat(raw) || 0)
+    const hours = Math.max(0, Math.round((parseFloat(raw) || 0) * 4) / 4)
     const cellKey = `${rowId}|${date}`
 
     setSaving(prev => new Set(prev).add(cellKey))
@@ -304,7 +304,7 @@ export default function TimeGrid({
                           type="number"
                           min="0"
                           max="24"
-                          step="0.5"
+                          step="0.25"
                           value={row.hours[date] ?? ''}
                           onChange={e => updateHoursLocal(row.rowId, date, e.target.value)}
                           onBlur={() => saveCell(row.rowId, date)}

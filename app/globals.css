@@ -22,21 +22,25 @@ body {
 
 @keyframes stripes-move {
   from {
-    background-position: 0 0;
+    background-position: 32px 0;
   }
   to {
-    background-position: -32px 0;
+    background-position: 0 0;
   }
 }
 
 .today-stripes {
-  background-image: repeating-linear-gradient(
+  background-color: rgba(220, 252, 231, 0.9);
+  background-image: linear-gradient(
     45deg,
-    rgba(34, 197, 94, 0.35) 0px,
-    rgba(34, 197, 94, 0.35) 8px,
-    rgba(220, 252, 231, 0.9) 8px,
-    rgba(220, 252, 231, 0.9) 16px
+    rgba(34, 197, 94, 0.35) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(34, 197, 94, 0.35) 50%,
+    rgba(34, 197, 94, 0.35) 75%,
+    transparent 75%,
+    transparent
   );
   background-size: 32px 32px;
-  animation: stripes-move 2.5s linear infinite;
+  animation: stripes-move 1.5s linear infinite;
 }
