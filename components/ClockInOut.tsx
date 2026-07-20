@@ -306,7 +306,7 @@ export default function ClockInOut({
           Time Sheet Preview
         </h3>
         <div className="rounded-2xl border-4 bg-white overflow-hidden" style={{ borderColor: '#0B1460' }}>
-          <div className="overflow-auto max-h-[560px] px-2 pb-2">
+          <div className="overflow-auto max-h-[560px] pb-4">
             {weekStart && clockSessionRows ? (
               <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
             ) : (

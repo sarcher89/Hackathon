@@ -110,37 +110,46 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
   return (
     <div>
-      <div
-        className="sticky top-0 z-10 mb-4 flex items-center justify-between px-3 py-2.5 rounded-lg"
-        style={{ backgroundColor: '#0B1460' }}
-      >
-        {compact ? (
+      {compact ? (
+        <div
+          className="sticky top-0 z-10 mb-4 flex items-center justify-between px-4 py-5"
+          style={{ backgroundColor: '#0B1460' }}
+        >
           <span className="text-sm font-semibold text-white">{formatPeriodRange(periodStart)}</span>
-        ) : (
+          <div className="text-center">
+            <p className="text-2xl font-bold text-white leading-none">
+              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-white/70">hrs</span>
+            </p>
+            <p className="text-xs text-white/60 mt-0.5">Total</p>
+          </div>
+        </div>
+      ) : (
+        <div className="sticky top-0 z-10 bg-white mb-4 flex items-center justify-between px-1 py-2 border-b border-slate-100">
           <select
             value={toISODate(periodStart)}
             onChange={e => handlePeriodChange(e.target.value)}
-            className="rounded border border-white/30 bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20 transition-colors focus:outline-none focus:ring-1 focus:ring-white/50"
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
           >
             {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
-              <option value={toISODate(periodStart)} className="text-slate-900">{formatPeriodRange(periodStart)}</option>
+              <option value={toISODate(periodStart)}>{formatPeriodRange(periodStart)}</option>
             )}
             {periodOptions.map(p => (
-              <option key={p.periodStart} value={p.periodStart} className="text-slate-900">
+              <option key={p.periodStart} value={p.periodStart}>
                 {p.label}
               </option>
             ))}
           </select>
-        )}
 
-        <div className="text-center">
-          <p className="text-2xl font-bold text-white leading-none">
-            {fmtHrs(periodTotal)} <span className="text-base font-semibold text-white/70">hrs</span>
-          </p>
-          <p className="text-xs text-white/60 mt-0.5">Total</p>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-slate-800 leading-none">
+              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">Total</p>
+          </div>
         </div>
-      </div>
+      )}
 
+      <div className={compact ? 'px-2' : ''}>
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
         <table className="min-w-full text-sm border-collapse">
           <thead>
@@ -323,6 +332,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
             </tr>
           </tfoot>
         </table>
+      </div>
       </div>
 
       {noteSessionId && (
