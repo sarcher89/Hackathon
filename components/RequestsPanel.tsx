@@ -51,16 +51,21 @@ function RequestCard({
   actionable,
   onApprove,
   onDeny,
+  onSelect,
   busy,
 }: {
   request: TimeOffRequestWithUser
   actionable: boolean
   onApprove?: () => void
   onDeny?: () => void
+  onSelect?: () => void
   busy: boolean
 }) {
   return (
-    <div className="rounded border border-slate-200 bg-white p-3">
+    <div
+      onClick={onSelect}
+      className={`rounded border border-slate-200 bg-white p-3 ${onSelect ? 'cursor-pointer hover:border-blue-300' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium text-slate-800">{request.userName}</p>
@@ -77,14 +82,20 @@ function RequestCard({
       {actionable && (
         <div className="mt-3 flex gap-2">
           <button
-            onClick={onApprove}
+            onClick={e => {
+              e.stopPropagation()
+              onApprove?.()
+            }}
             disabled={busy}
             className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
             Approve
           </button>
           <button
-            onClick={onDeny}
+            onClick={e => {
+              e.stopPropagation()
+              onDeny?.()
+            }}
             disabled={busy}
             className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
           >
@@ -102,6 +113,7 @@ function Section({
   actionable,
   onApprove,
   onDeny,
+  onSelectRequest,
   busyId,
 }: {
   title: string
@@ -109,6 +121,7 @@ function Section({
   actionable?: boolean
   onApprove?: (id: string) => void
   onDeny?: (id: string) => void
+  onSelectRequest?: (request: TimeOffRequestWithUser) => void
   busyId: string | null
 }) {
   return (
@@ -127,6 +140,7 @@ function Section({
               actionable={Boolean(actionable)}
               onApprove={() => onApprove?.(r.id)}
               onDeny={() => onDeny?.(r.id)}
+              onSelect={onSelectRequest ? () => onSelectRequest(r) : undefined}
               busy={busyId === r.id}
             />
           ))}
@@ -184,6 +198,12 @@ export default function RequestsPanel() {
 
   const yearOptions = Array.from({ length: 11 }, (_, i) => today.getFullYear() - 5 + i)
 
+  function jumpToRequest(request: TimeOffRequestWithUser) {
+    const d = new Date(request.date + 'T00:00:00')
+    setSelectedMonth(d.getMonth())
+    setSelectedYear(d.getFullYear())
+  }
+
   if (loading) {
     return <p className="text-sm text-slate-400">Loading requests…</p>
   }
@@ -198,6 +218,7 @@ export default function RequestsPanel() {
           actionable
           onApprove={id => handleStatusChange(id, 'approved')}
           onDeny={id => handleStatusChange(id, 'denied')}
+          onSelectRequest={jumpToRequest}
           busyId={busyId}
         />
         <Section title="Approved" requests={approved} busyId={busyId} />
@@ -260,7 +281,7 @@ export default function RequestsPanel() {
                             'flex items-center gap-1 rounded px-1 py-0.5 text-[10px] leading-tight truncate',
                             r.status === 'pending'
                               ? 'border border-dashed border-slate-300 text-slate-500'
-                              : 'bg-slate-100 text-slate-700',
+                              : 'bg-green-100 text-green-800',
                           ].join(' ')}
                         >
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${TYPE_DOT[r.type] ?? 'bg-slate-400'}`} />
@@ -275,7 +296,7 @@ export default function RequestsPanel() {
           ))}
         </div>
 
-        <p className="mt-2 text-xs text-slate-400">Dashed chips are pending; solid chips are approved.</p>
+        <p className="mt-2 text-xs text-slate-400">Dotted grey chips are pending; green chips are approved.</p>
       </div>
     </div>
   )
