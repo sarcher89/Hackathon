@@ -7,6 +7,7 @@ import {
   getPayPeriodEntries,
   type PayPeriodSummary,
 } from '@/app/actions/leader'
+import { generatePayrollWorkbook } from '@/app/actions/export'
 import { formatDayHeader, formatPeriodRange } from '@/lib/dates'
 
 export interface ExportEntry {
@@ -30,30 +31,13 @@ interface Props {
   entries: ExportEntry[]
 }
 
-function escapeCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
-}
-
-function generateCSV(entries: ExportEntry[]): string {
-  const headers = ['Employee', 'Email', 'Date', 'Client', 'Project', 'Task', 'Category', 'Hours', 'Notes']
-  const rows = entries.map(e => [
-    e.userName,
-    e.userEmail,
-    e.date,
-    e.clientName,
-    e.projectName ?? '',
-    e.taskName,
-    e.taskCategory,
-    String(e.hours),
-    e.notes ?? '',
-  ])
-  return [headers, ...rows]
-    .map(row => row.map(escapeCell).join(','))
-    .join('\n')
-}
-
-function downloadCSV(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+function downloadWorkbook(base64: string, filename: string) {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -113,9 +97,11 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
     if (entriesToExport.length === 0) return
     setExporting(true)
 
-    const csv = generateCSV(entriesToExport)
-    const filename = `payroll-${weekStart}.csv`
-    downloadCSV(csv, filename)
+    const base64 = await generatePayrollWorkbook(
+      entriesToExport,
+      `Pay Period: ${formatPeriodRange(periodStart)}`
+    )
+    downloadWorkbook(base64, `payroll-${weekStart}.xlsx`)
 
     const ids = entriesToExport.map(e => e.id)
     await markEntriesExported(ids)
@@ -159,8 +145,15 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
     setDownloading(true)
 
     const selectedEntries = await getPayPeriodEntries(employee.id, Array.from(selectedPeriods))
-    const csv = generateCSV(selectedEntries)
-    downloadCSV(csv, `payroll-${slugify(employee.name)}.csv`)
+    const periodLabels = periods
+      .filter(p => selectedPeriods.has(p.periodStart))
+      .map(p => p.label)
+      .join(', ')
+    const base64 = await generatePayrollWorkbook(
+      selectedEntries,
+      `${employee.name} — ${periodLabels}`
+    )
+    downloadWorkbook(base64, `payroll-${slugify(employee.name)}.xlsx`)
 
     const ids = selectedEntries.map(e => e.id)
     await markEntriesExported(ids)
@@ -187,7 +180,7 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
           disabled={exporting || entries.length === 0}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {exporting ? 'Exporting…' : 'Export all as CSV'}
+          {exporting ? 'Exporting…' : 'Export all as Excel'}
         </button>
         {hasNew && (
           <button
