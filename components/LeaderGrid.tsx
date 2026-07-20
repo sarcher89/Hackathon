@@ -5,6 +5,7 @@ import {
   markEntriesExported,
   getEmployeePayPeriods,
   getPayPeriodEntries,
+  getPayPeriodClockSessions,
   type PayPeriodSummary,
 } from '@/app/actions/leader'
 import { generatePayrollWorkbook } from '@/app/actions/export'
@@ -25,10 +26,21 @@ export interface ExportEntry {
   exported: boolean
 }
 
+export interface ExportClockSession {
+  id: string
+  userId: string
+  userEmail: string
+  date: string
+  clockedInAt: string
+  clockedOutAt: string | null
+  hours: number | null
+}
+
 interface Props {
   weekStart: string
   periodDates: string[]
   entries: ExportEntry[]
+  clockSessions: ExportClockSession[]
 }
 
 function downloadWorkbook(base64: string, filename: string) {
@@ -55,7 +67,7 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'employee'
 }
 
-export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
+export default function LeaderGrid({ weekStart, periodDates, entries, clockSessions }: Props) {
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
     new Set(entries.filter(e => e.exported).map(e => e.id))
@@ -99,6 +111,7 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
 
     const base64 = await generatePayrollWorkbook(
       entriesToExport,
+      clockSessions,
       `Pay Period: ${formatPeriodRange(periodStart)}`
     )
     downloadWorkbook(base64, `payroll-${weekStart}.xlsx`)
@@ -144,13 +157,17 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
     if (selectedPeriods.size === 0) return
     setDownloading(true)
 
-    const selectedEntries = await getPayPeriodEntries(employee.id, Array.from(selectedPeriods))
+    const [selectedEntries, selectedSessions] = await Promise.all([
+      getPayPeriodEntries(employee.id, Array.from(selectedPeriods)),
+      getPayPeriodClockSessions(employee.id, Array.from(selectedPeriods)),
+    ])
     const periodLabels = periods
       .filter(p => selectedPeriods.has(p.periodStart))
       .map(p => p.label)
       .join(', ')
     const base64 = await generatePayrollWorkbook(
       selectedEntries,
+      selectedSessions,
       `${employee.name} — ${periodLabels}`
     )
     downloadWorkbook(base64, `payroll-${slugify(employee.name)}.xlsx`)

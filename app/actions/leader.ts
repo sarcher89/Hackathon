@@ -3,7 +3,7 @@
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/lib/dates'
-import type { ExportEntry } from '@/components/LeaderGrid'
+import type { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
 
 export async function markEntriesExported(entryIds: string[]): Promise<void> {
   if (entryIds.length === 0) return
@@ -111,5 +111,54 @@ export async function getPayPeriodEntries(
       hours: r.hours,
       notes: r.notes,
       exported: r.exported,
+    }))
+}
+
+export async function getPayPeriodClockSessions(
+  userId: string,
+  periodStarts: string[]
+): Promise<ExportClockSession[]> {
+  if (periodStarts.length === 0) return []
+
+  const supabase = createSupabaseServerClient()
+  const caller = await getOrCreateUser(supabase)
+  if (!caller || (caller.role !== 'leader' && caller.role !== 'admin')) return []
+
+  const wantedPeriods = new Set(periodStarts)
+  const ranges = periodStarts.map(ps => {
+    const isoDates = getPeriodDates(new Date(ps + 'T00:00:00')).map(toISODate)
+    return { start: isoDates[0], end: isoDates[isoDates.length - 1] }
+  })
+  const rangeStart = ranges.reduce((min, r) => (r.start < min ? r.start : min), ranges[0].start)
+  const rangeEnd = ranges.reduce((max, r) => (r.end > max ? r.end : max), ranges[0].end)
+
+  const { data, error } = await createSupabaseServiceClient()
+    .from('clock_sessions')
+    .select(`
+      id,
+      entry_date,
+      clocked_in_at,
+      clocked_out_at,
+      hours,
+      user:users!inner(id, email)
+    `)
+    .eq('user_id', userId)
+    .gte('entry_date', rangeStart)
+    .lte('entry_date', rangeEnd)
+    .order('clocked_in_at')
+
+  if (error || !data) return []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data as any[])
+    .filter(r => wantedPeriods.has(toISODate(getPeriodStart(new Date(r.entry_date + 'T00:00:00')))))
+    .map(r => ({
+      id: r.id,
+      userId: r.user?.id ?? '',
+      userEmail: r.user?.email ?? '',
+      date: r.entry_date,
+      clockedInAt: r.clocked_in_at,
+      clockedOutAt: r.clocked_out_at,
+      hours: r.hours,
     }))
 }
