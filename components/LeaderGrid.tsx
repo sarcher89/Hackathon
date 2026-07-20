@@ -5,8 +5,13 @@ import {
   markEntriesExported,
   getEmployeePayPeriods,
   getPayPeriodEntries,
+  getPayPeriodClockSessions,
+  getAllPayPeriods,
+  getPayPeriodEntriesAllUsers,
+  getPayPeriodClockSessionsAllUsers,
   type PayPeriodSummary,
 } from '@/app/actions/leader'
+import { generatePayrollWorkbook } from '@/app/actions/export'
 import { formatDayHeader, formatPeriodRange } from '@/lib/dates'
 
 export interface ExportEntry {
@@ -24,36 +29,30 @@ export interface ExportEntry {
   exported: boolean
 }
 
+export interface ExportClockSession {
+  id: string
+  userId: string
+  userEmail: string
+  date: string
+  clockedInAt: string
+  clockedOutAt: string | null
+  hours: number | null
+}
+
 interface Props {
   weekStart: string
   periodDates: string[]
   entries: ExportEntry[]
+  clockSessions: ExportClockSession[]
 }
 
-function escapeCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
-}
-
-function generateCSV(entries: ExportEntry[]): string {
-  const headers = ['Employee', 'Email', 'Date', 'Client', 'Project', 'Task', 'Category', 'Hours', 'Notes']
-  const rows = entries.map(e => [
-    e.userName,
-    e.userEmail,
-    e.date,
-    e.clientName,
-    e.projectName ?? '',
-    e.taskName,
-    e.taskCategory,
-    String(e.hours),
-    e.notes ?? '',
-  ])
-  return [headers, ...rows]
-    .map(row => row.map(escapeCell).join(','))
-    .join('\n')
-}
-
-function downloadCSV(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+function downloadWorkbook(base64: string, filename: string) {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -71,7 +70,7 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'employee'
 }
 
-export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
+export default function LeaderGrid({ weekStart, periodDates, entries, clockSessions }: Props) {
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
     new Set(entries.filter(e => e.exported).map(e => e.id))
@@ -82,6 +81,12 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
   const [loadingPeriods, setLoadingPeriods] = useState(false)
   const [selectedPeriods, setSelectedPeriods] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
+
+  const [showTeamPicker, setShowTeamPicker] = useState(false)
+  const [teamPeriods, setTeamPeriods] = useState<PayPeriodSummary[]>([])
+  const [loadingTeamPeriods, setLoadingTeamPeriods] = useState(false)
+  const [selectedTeamPeriods, setSelectedTeamPeriods] = useState<Set<string>>(new Set())
+  const [downloadingTeam, setDownloadingTeam] = useState(false)
 
   const periodStart = new Date(weekStart + 'T00:00:00')
   const dayHeaders = periodDates.map(d => ({
@@ -113,9 +118,12 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
     if (entriesToExport.length === 0) return
     setExporting(true)
 
-    const csv = generateCSV(entriesToExport)
-    const filename = `payroll-${weekStart}.csv`
-    downloadCSV(csv, filename)
+    const base64 = await generatePayrollWorkbook(
+      entriesToExport,
+      clockSessions,
+      `Pay Period: ${formatPeriodRange(periodStart)}`
+    )
+    downloadWorkbook(base64, `payroll-${weekStart}.xlsx`)
 
     const ids = entriesToExport.map(e => e.id)
     await markEntriesExported(ids)
@@ -158,9 +166,20 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
     if (selectedPeriods.size === 0) return
     setDownloading(true)
 
-    const selectedEntries = await getPayPeriodEntries(employee.id, Array.from(selectedPeriods))
-    const csv = generateCSV(selectedEntries)
-    downloadCSV(csv, `payroll-${slugify(employee.name)}.csv`)
+    const [selectedEntries, selectedSessions] = await Promise.all([
+      getPayPeriodEntries(employee.id, Array.from(selectedPeriods)),
+      getPayPeriodClockSessions(employee.id, Array.from(selectedPeriods)),
+    ])
+    const periodLabels = periods
+      .filter(p => selectedPeriods.has(p.periodStart))
+      .map(p => p.label)
+      .join(', ')
+    const base64 = await generatePayrollWorkbook(
+      selectedEntries,
+      selectedSessions,
+      `${employee.name} — ${periodLabels}`
+    )
+    downloadWorkbook(base64, `payroll-${slugify(employee.name)}.xlsx`)
 
     const ids = selectedEntries.map(e => e.id)
     await markEntriesExported(ids)
@@ -170,6 +189,65 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
 
   const allPeriodsSelected = periods.length > 0 && selectedPeriods.size === periods.length
   const columnCount = periodDates.length + 2
+
+  async function toggleTeamPicker() {
+    if (showTeamPicker) {
+      setShowTeamPicker(false)
+      return
+    }
+
+    setShowTeamPicker(true)
+    setTeamPeriods([])
+    setSelectedTeamPeriods(new Set([weekStart]))
+    setLoadingTeamPeriods(true)
+    const result = await getAllPayPeriods()
+    setTeamPeriods(result)
+    setLoadingTeamPeriods(false)
+  }
+
+  function toggleTeamPeriod(periodStart: string) {
+    setSelectedTeamPeriods(prev => {
+      const next = new Set(prev)
+      if (next.has(periodStart)) next.delete(periodStart)
+      else next.add(periodStart)
+      return next
+    })
+  }
+
+  function toggleTeamSelectAll() {
+    setSelectedTeamPeriods(prev =>
+      prev.size === teamPeriods.length ? new Set() : new Set(teamPeriods.map(p => p.periodStart))
+    )
+  }
+
+  async function handleDownloadTeamSelected() {
+    if (selectedTeamPeriods.size === 0) return
+    setDownloadingTeam(true)
+
+    const periodStarts = Array.from(selectedTeamPeriods)
+    const [selectedEntries, selectedSessions] = await Promise.all([
+      getPayPeriodEntriesAllUsers(periodStarts),
+      getPayPeriodClockSessionsAllUsers(periodStarts),
+    ])
+    const periodLabels = teamPeriods
+      .filter(p => selectedTeamPeriods.has(p.periodStart))
+      .map(p => p.label)
+      .join(', ')
+    const base64 = await generatePayrollWorkbook(
+      selectedEntries,
+      selectedSessions,
+      `Pay Period(s): ${periodLabels}`
+    )
+    downloadWorkbook(base64, `payroll-team-${periodStarts[0]}.xlsx`)
+
+    const ids = selectedEntries.map(e => e.id)
+    await markEntriesExported(ids)
+    setExportedIds(prev => new Set(Array.from(prev).concat(ids)))
+
+    setDownloadingTeam(false)
+  }
+
+  const allTeamPeriodsSelected = teamPeriods.length > 0 && selectedTeamPeriods.size === teamPeriods.length
 
   return (
     <div>
@@ -183,11 +261,10 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
       {/* Export buttons */}
       <div className="mb-4 flex items-center gap-3">
         <button
-          onClick={() => handleExport(entries)}
-          disabled={exporting || entries.length === 0}
+          onClick={toggleTeamPicker}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {exporting ? 'Exporting…' : 'Export all as CSV'}
+          Export all as Excel…
         </button>
         {hasNew && (
           <button
@@ -195,13 +272,74 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
             disabled={exporting}
             className="rounded border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
           >
-            Export new only ({newEntries.length} entries)
+            {exporting ? 'Exporting…' : `Export new only (${newEntries.length} entries)`}
           </button>
         )}
         {entries.length === 0 && (
           <p className="text-sm text-slate-400">No entries logged this pay period.</p>
         )}
       </div>
+
+      {showTeamPicker && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h4 className="mb-3 text-sm font-semibold text-slate-700">
+            Choose pay period(s) to export for all employees
+          </h4>
+
+          {loadingTeamPeriods ? (
+            <p className="text-sm text-slate-400">Loading pay periods…</p>
+          ) : teamPeriods.length === 0 ? (
+            <p className="text-sm text-slate-400">No pay periods found.</p>
+          ) : (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={allTeamPeriodsSelected}
+                    onChange={toggleTeamSelectAll}
+                    className="rounded border-slate-300"
+                  />
+                  Select all ({teamPeriods.length} pay periods)
+                </label>
+                <button
+                  onClick={handleDownloadTeamSelected}
+                  disabled={downloadingTeam || selectedTeamPeriods.size === 0}
+                  className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {downloadingTeam ? 'Downloading…' : `Download selected (${selectedTeamPeriods.size})`}
+                </button>
+              </div>
+
+              <div className="max-h-72 overflow-y-auto rounded border border-slate-200">
+                <table className="min-w-full text-sm">
+                  <tbody className="divide-y divide-slate-100">
+                    {teamPeriods.map(p => (
+                      <tr key={p.periodStart} className="hover:bg-slate-50/50">
+                        <td className="px-3 py-2 w-8">
+                          <input
+                            type="checkbox"
+                            checked={selectedTeamPeriods.has(p.periodStart)}
+                            onChange={() => toggleTeamPeriod(p.periodStart)}
+                            className="rounded border-slate-300"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-sm text-slate-700">{p.label}</td>
+                        <td className="px-3 py-2 text-right text-sm text-slate-500">
+                          {formatHours(p.hours)} hrs
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs text-slate-400">
+                          {p.entryCount} {p.entryCount === 1 ? 'entry' : 'entries'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <p className="mb-2 text-xs text-slate-400">Click an employee&rsquo;s name to export their past pay periods.</p>
 

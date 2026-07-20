@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
-import { ExportEntry } from '@/components/LeaderGrid'
+import { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
 import LeaderTabs from '@/components/LeaderTabs'
 import { Client, Project, Task, TimeEntry, User } from '@/types/database'
 
@@ -36,7 +36,7 @@ export default async function LeaderPage({
   const serviceClient = createSupabaseServiceClient()
 
   // Fetch all data in parallel
-  const [usersRes, rowsRes, clientsRes, projectsRes, tasksRes, myEntriesRes, clockRes, sessionsRes] = await Promise.all([
+  const [usersRes, rowsRes, clientsRes, projectsRes, tasksRes, myEntriesRes, clockRes, sessionsRes, allSessionsRes] = await Promise.all([
     supabase.from('users').select('*').order('full_name'),
     serviceClient
       .from('time_entries')
@@ -76,6 +76,22 @@ export default async function LeaderPage({
       .from('clock_sessions')
       .select('id, entry_date, clocked_in_at, clocked_out_at, hours')
       .eq('user_id', user.id)
+      .gte('entry_date', periodDates[0])
+      .lte('entry_date', periodDates[periodDates.length - 1])
+      .order('clocked_in_at'),
+    // clock_sessions RLS only allows a user to see their own rows, but the
+    // Payroll Export needs every employee's sessions — read with the
+    // service-role client now that the leader/admin check above authorized it.
+    serviceClient
+      .from('clock_sessions')
+      .select(`
+        id,
+        entry_date,
+        clocked_in_at,
+        clocked_out_at,
+        hours,
+        user:users!inner(id, email)
+      `)
       .gte('entry_date', periodDates[0])
       .lte('entry_date', periodDates[periodDates.length - 1])
       .order('clocked_in_at'),
@@ -140,6 +156,17 @@ export default async function LeaderPage({
     hours: s.hours,
   }))
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payrollClockSessions: ExportClockSession[] = (allSessionsRes.data ?? []).map((s: any) => ({
+    id: s.id,
+    userId: s.user?.id ?? '',
+    userEmail: s.user?.email ?? '',
+    date: s.entry_date,
+    clockedInAt: s.clocked_in_at,
+    clockedOutAt: s.clocked_out_at,
+    hours: s.hours,
+  }))
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -158,6 +185,7 @@ export default async function LeaderPage({
         weekStart={weekStart}
         periodDates={periodDates}
         entries={entries}
+        payrollClockSessions={payrollClockSessions}
         users={users}
         clockSession={clockSession}
         clients={clients}

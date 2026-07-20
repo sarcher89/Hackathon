@@ -6,7 +6,7 @@ import ClockInOut from '@/components/ClockInOut'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeGrid from '@/components/TimeGrid'
 import PayStub from '@/components/PayStub'
-import LeaderGrid, { ExportEntry } from '@/components/LeaderGrid'
+import LeaderGrid, { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
 import AdminPanel from '@/components/AdminPanel'
 import RequestsPanel from '@/components/RequestsPanel'
 import { Client, Project, Task, User } from '@/types/database'
@@ -45,6 +45,7 @@ interface Props {
   weekStart: string
   periodDates: string[]
   entries: ExportEntry[]
+  payrollClockSessions: ExportClockSession[]
   users: User[]
   clockSession: ClockSession | null
   clients: Client[]
@@ -62,6 +63,7 @@ export default function LeaderTabs({
   weekStart,
   periodDates,
   entries,
+  payrollClockSessions,
   users,
   clockSession,
   clients,
@@ -174,6 +176,7 @@ export default function LeaderTabs({
           weekStart={weekStart}
           periodDates={periodDates}
           entries={entries}
+          clockSessions={payrollClockSessions}
         />
       )}
       {tab === 'team' && (
