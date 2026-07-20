@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { getMondayOfWeek, getWeekDates, getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
+import { getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
 import { Client, Project, Task, TimeEntry } from '@/types/database'
 import DashboardTabs from '@/components/DashboardTabs'
 
@@ -30,10 +30,6 @@ export default async function DashboardPage({
   const periodDates = getPeriodDates(periodStart).map(toISODate)
   const weekStart = toISODate(periodStart)
 
-  // Keep 7-day dates for TimeGrid columns (Mon–Sun of the week containing period start)
-  const monday = getMondayOfWeek(periodStart)
-  const dates = getWeekDates(monday).map(toISODate)
-
   // Fetch all data in parallel
   const [clientsRes, projectsRes, tasksRes, entriesRes, clockRes, sessionsRes] = await Promise.all([
     supabase.from('clients').select('*').eq('active', true).order('name'),
@@ -43,8 +39,8 @@ export default async function DashboardPage({
       .from('time_entries')
       .select('*')
       .eq('user_id', user.id)
-      .gte('entry_date', dates[0])
-      .lte('entry_date', dates[6]),
+      .gte('entry_date', periodDates[0])
+      .lte('entry_date', periodDates[periodDates.length - 1]),
     supabase
       .from('clock_sessions')
       .select('id, clocked_in_at')
@@ -120,7 +116,7 @@ export default async function DashboardPage({
       <DashboardTabs
         clockSession={clockSession}
         weekStart={weekStart}
-        dates={dates}
+        periodDates={periodDates}
         clients={clients}
         projectsByClient={projectsByClient}
         tasks={tasks}

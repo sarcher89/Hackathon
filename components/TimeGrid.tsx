@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Client, Project, Task } from '@/types/database'
-import { saveTimeEntry, clearRowEntries, getMyProjectLogWeeks, type MyWeekOption } from '@/app/actions/time-entries'
-import { formatDayHeader, formatWeekRange } from '@/lib/dates'
+import { saveTimeEntry, clearRowEntries, getMyProjectLogPeriods, type MyPeriodOption } from '@/app/actions/time-entries'
+import { formatDayHeader, getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
 import Combobox from '@/components/Combobox'
 import { ClockSessionRow } from '@/components/TimeSheet'
 
@@ -18,7 +18,7 @@ interface GridRow {
 
 interface TimeGridProps {
   weekStart: string
-  dates: string[]
+  periodDates: string[]
   clients: Client[]
   projectsByClient: Record<string, Project[]>
   tasks: Task[]
@@ -54,7 +54,7 @@ function formatHours(n: number): string {
 
 export default function TimeGrid({
   weekStart,
-  dates,
+  periodDates,
   clients,
   projectsByClient,
   tasks,
@@ -70,13 +70,13 @@ export default function TimeGrid({
   const [saving, setSaving] = useState<Set<string>>(new Set())
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
 
-  const [weekOptions, setWeekOptions] = useState<MyWeekOption[]>([])
+  const [periodOptions, setPeriodOptions] = useState<MyPeriodOption[]>([])
   useEffect(() => {
-    getMyProjectLogWeeks().then(setWeekOptions)
+    getMyProjectLogPeriods().then(setPeriodOptions)
   }, [])
 
-  const monday = new Date(weekStart + 'T00:00:00')
-  const dayHeaders = dates.map(d => ({
+  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  const dayHeaders = periodDates.map(d => ({
     isoDate: d,
     ...formatDayHeader(new Date(d + 'T00:00:00')),
   }))
@@ -94,7 +94,7 @@ export default function TimeGrid({
         clientId: row.clientId,
         projectId: row.projectId,
         taskId: row.taskId,
-        dates,
+        dates: periodDates,
       }).catch(console.error)
     }
   }
@@ -114,7 +114,7 @@ export default function TimeGrid({
             clientId: row.clientId,
             projectId: row.projectId,
             taskId: row.taskId,
-            dates,
+            dates: periodDates,
           }).catch(console.error)
         }
 
@@ -171,14 +171,14 @@ export default function TimeGrid({
     }
   }
 
-  function handleWeekChange(next: string) {
+  function handlePeriodChange(next: string) {
     router.push(`${pathname}?week=${next}`)
   }
 
-  const dayTotals = dates.map(date =>
+  const dayTotals = periodDates.map(date =>
     rows.reduce((sum, r) => sum + (parseFloat(r.hours[date] ?? '') || 0), 0)
   )
-  const weekTotal = dayTotals.reduce((a, b) => a + b, 0)
+  const periodTotal = dayTotals.reduce((a, b) => a + b, 0)
 
   const clockedByDate: Record<string, number> = {}
   for (const s of clockSessionRows ?? []) {
@@ -188,24 +188,24 @@ export default function TimeGrid({
 
   return (
     <div>
-      {/* Week selector */}
+      {/* Period selector */}
       <div className="mb-4 flex items-center justify-between">
         <select
-          value={dates[0]}
-          onChange={e => handleWeekChange(e.target.value)}
+          value={toISODate(periodStart)}
+          onChange={e => handlePeriodChange(e.target.value)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
         >
-          {!weekOptions.some(w => w.weekStart === dates[0]) && (
-            <option value={dates[0]}>{formatWeekRange(monday)}</option>
+          {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
+            <option value={toISODate(periodStart)}>{formatPeriodRange(periodStart)}</option>
           )}
-          {weekOptions.map(w => (
-            <option key={w.weekStart} value={w.weekStart}>
-              {w.label}
+          {periodOptions.map(p => (
+            <option key={p.periodStart} value={p.periodStart}>
+              {p.label}
             </option>
           ))}
         </select>
         <span className="text-sm font-semibold text-slate-700">
-          {formatWeekRange(monday)}
+          {formatPeriodRange(periodStart)}
         </span>
       </div>
 
@@ -246,7 +246,7 @@ export default function TimeGrid({
 
           <tbody className="divide-y divide-slate-100">
             {rows.map(row => {
-              const rowTotal = dates.reduce(
+              const rowTotal = periodDates.reduce(
                 (sum, d) => sum + (parseFloat(row.hours[d] ?? '') || 0),
                 0
               )
@@ -292,7 +292,7 @@ export default function TimeGrid({
                   </td>
 
                   {/* Hour inputs */}
-                  {dates.map(date => {
+                  {periodDates.map(date => {
                     const cellKey = `${row.rowId}|${date}`
                     const isSaving = saving.has(cellKey)
                     const hasError = errors.has(cellKey)
@@ -355,12 +355,12 @@ export default function TimeGrid({
                 Daily Total
               </td>
               {dayTotals.map((total, i) => {
-                const clocked = clockedByDate[dates[i]] ?? 0
+                const clocked = clockedByDate[periodDates[i]] ?? 0
                 const reconciled = clocked > 0 && Math.abs(total - clocked) < 0.01
                 const mismatched = clocked > 0 && Math.abs(total - clocked) >= 0.01
                 return (
                   <td
-                    key={dates[i]}
+                    key={periodDates[i]}
                     title={
                       clocked > 0
                         ? reconciled
@@ -378,7 +378,7 @@ export default function TimeGrid({
                 )
               })}
               <td className="px-2 py-2 text-center text-xs font-bold text-slate-900">
-                {formatHours(weekTotal)}
+                {formatHours(periodTotal)}
               </td>
               <td />
             </tr>
