@@ -50,7 +50,7 @@ function getTasksForClient(tasks: Task[], clients: Client[], clientId: string): 
 
 function formatHours(n: number): string {
   if (n === 0) return '—'
-  return n % 1 === 0 ? String(n) : n.toFixed(1)
+  return n % 1 === 0 ? String(n) : n.toFixed(2)
 }
 
 export default function TimeGrid({

@@ -258,6 +258,7 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
   const [loadingPeriods, setLoadingPeriods] = useState(false)
   const [selectedPeriods, setSelectedPeriods] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
+  const [showPeriodPicker, setShowPeriodPicker] = useState(false)
 
   const [showTeamPicker, setShowTeamPicker] = useState(false)
   const [teamPeriods, setTeamPeriods] = useState<PayPeriodSummary[]>([])
@@ -316,6 +317,7 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
     }
 
     setExpandedUserId(userId)
+    setShowPeriodPicker(false)
     setPeriods([])
     setSelectedPeriods(new Set())
     setLoadingPeriods(true)
@@ -337,6 +339,29 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
     setSelectedPeriods(prev =>
       prev.size === periods.length ? new Set() : new Set(periods.map(p => p.periodStart))
     )
+  }
+
+  const [exportingCurrentFor, setExportingCurrentFor] = useState<string | null>(null)
+
+  async function handleExportCurrentPeriod(employee: { id: string; name: string }) {
+    setExportingCurrentFor(employee.id)
+
+    const [currentEntries, currentSessions] = await Promise.all([
+      getPayPeriodEntries(employee.id, [weekStart]),
+      getPayPeriodClockSessions(employee.id, [weekStart]),
+    ])
+    const base64 = await generatePayrollWorkbook(
+      currentEntries,
+      currentSessions,
+      `${employee.name} — ${formatPeriodRange(periodStart)}`
+    )
+    downloadWorkbook(base64, `payroll-${slugify(employee.name)}.xlsx`)
+
+    const ids = currentEntries.map(e => e.id)
+    await markEntriesExported(ids)
+    setExportedIds(prev => new Set(Array.from(prev).concat(ids)))
+
+    setExportingCurrentFor(null)
   }
 
   async function handleDownloadSelected(employee: { id: string; name: string }) {
@@ -598,61 +623,83 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
                       <tr className="bg-slate-50/70">
                         <td colSpan={columnCount} className="px-4 py-4 space-y-4">
                           <div className="rounded-lg border border-slate-200 bg-white p-4">
-                            <h4 className="mb-3 text-sm font-semibold text-slate-700">
-                              Export by Pay Period
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleExportCurrentPeriod({ id: u.id, name: u.name })}
+                                disabled={exportingCurrentFor === u.id}
+                                className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                              >
+                                {exportingCurrentFor === u.id ? 'Exporting…' : 'Export Current Pay Period'}
+                              </button>
+                              <button
+                                onClick={() => setShowPeriodPicker(prev => !prev)}
+                                className="flex items-center gap-1.5 rounded border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                              >
+                                <svg
+                                  className={`w-3 h-3 shrink-0 text-slate-400 transition-transform ${showPeriodPicker ? '' : '-rotate-90'}`}
+                                  viewBox="0 0 16 16" fill="none"
+                                >
+                                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                Export by Pay Period
+                              </button>
+                            </div>
 
-                            {loadingPeriods ? (
-                              <p className="text-sm text-slate-400">Loading pay periods…</p>
-                            ) : periods.length === 0 ? (
-                              <p className="text-sm text-slate-400">No pay periods found for this employee.</p>
-                            ) : (
-                              <>
-                                <div className="mb-2 flex items-center justify-between">
-                                  <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                                    <input
-                                      type="checkbox"
-                                      checked={allPeriodsSelected}
-                                      onChange={toggleSelectAll}
-                                      className="rounded border-slate-300"
-                                    />
-                                    Select all ({periods.length} pay periods)
-                                  </label>
-                                  <button
-                                    onClick={() => handleDownloadSelected({ id: u.id, name: u.name })}
-                                    disabled={downloading || selectedPeriods.size === 0}
-                                    className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                                  >
-                                    {downloading ? 'Downloading…' : `Download selected (${selectedPeriods.size})`}
-                                  </button>
-                                </div>
+                            {showPeriodPicker && (
+                              <div className="mt-3">
+                                {loadingPeriods ? (
+                                  <p className="text-sm text-slate-400">Loading pay periods…</p>
+                                ) : periods.length === 0 ? (
+                                  <p className="text-sm text-slate-400">No pay periods found for this employee.</p>
+                                ) : (
+                                  <>
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                                        <input
+                                          type="checkbox"
+                                          checked={allPeriodsSelected}
+                                          onChange={toggleSelectAll}
+                                          className="rounded border-slate-300"
+                                        />
+                                        Select all ({periods.length} pay periods)
+                                      </label>
+                                      <button
+                                        onClick={() => handleDownloadSelected({ id: u.id, name: u.name })}
+                                        disabled={downloading || selectedPeriods.size === 0}
+                                        className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                      >
+                                        {downloading ? 'Downloading…' : `Download selected (${selectedPeriods.size})`}
+                                      </button>
+                                    </div>
 
-                                <div className="max-h-72 overflow-y-auto rounded border border-slate-200">
-                                  <table className="min-w-full text-sm">
-                                    <tbody className="divide-y divide-slate-100">
-                                      {periods.map(p => (
-                                        <tr key={p.periodStart} className="hover:bg-slate-50/50">
-                                          <td className="px-3 py-2 w-8">
-                                            <input
-                                              type="checkbox"
-                                              checked={selectedPeriods.has(p.periodStart)}
-                                              onChange={() => togglePeriod(p.periodStart)}
-                                              className="rounded border-slate-300"
-                                            />
-                                          </td>
-                                          <td className="px-3 py-2 text-sm text-slate-700">{p.label}</td>
-                                          <td className="px-3 py-2 text-right text-sm text-slate-500">
-                                            {formatHours(p.hours)} hrs
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-xs text-slate-400">
-                                            {p.entryCount} {p.entryCount === 1 ? 'entry' : 'entries'}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </>
+                                    <div className="max-h-72 overflow-y-auto rounded border border-slate-200">
+                                      <table className="min-w-full text-sm">
+                                        <tbody className="divide-y divide-slate-100">
+                                          {periods.map(p => (
+                                            <tr key={p.periodStart} className="hover:bg-slate-50/50">
+                                              <td className="px-3 py-2 w-8">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={selectedPeriods.has(p.periodStart)}
+                                                  onChange={() => togglePeriod(p.periodStart)}
+                                                  className="rounded border-slate-300"
+                                                />
+                                              </td>
+                                              <td className="px-3 py-2 text-sm text-slate-700">{p.label}</td>
+                                              <td className="px-3 py-2 text-right text-sm text-slate-500">
+                                                {formatHours(p.hours)} hrs
+                                              </td>
+                                              <td className="px-3 py-2 text-right text-xs text-slate-400">
+                                                {p.entryCount} {p.entryCount === 1 ? 'entry' : 'entries'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
 
