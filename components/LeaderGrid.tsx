@@ -12,7 +12,7 @@ import {
   type PayPeriodSummary,
 } from '@/app/actions/leader'
 import { generatePayrollWorkbook } from '@/app/actions/export'
-import { formatDayHeader, formatPeriodRange } from '@/lib/dates'
+import { formatDayHeader, formatPeriodRange, roundToQuarterHour } from '@/lib/dates'
 
 export interface ExportEntry {
   id: string
@@ -71,42 +71,142 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'employee'
 }
 
-interface TaskBreakdownRow {
-  clientName: string
-  projectName: string | null
-  taskName: string
-  hours: number
+function formatSessionTime(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-function buildTaskBreakdown(employeeEntries: ExportEntry[]): TaskBreakdownRow[] {
-  const map = new Map<string, TaskBreakdownRow>()
-  for (const e of employeeEntries) {
-    const key = `${e.clientName}|${e.projectName ?? ''}|${e.taskName}`
-    if (!map.has(key)) {
-      map.set(key, { clientName: e.clientName, projectName: e.projectName, taskName: e.taskName, hours: 0 })
-    }
-    map.get(key)!.hours += e.hours
-  }
-  return Array.from(map.values()).sort((a, b) => b.hours - a.hours)
-}
-
-interface HoursByDateRow {
+interface TaskLogDay {
   date: string
   day: string
   shortDate: string
+  rows: ExportEntry[]
   hours: number
 }
 
-function buildHoursByDate(employeeEntries: ExportEntry[], periodDates: string[]): HoursByDateRow[] {
-  const map = new Map<string, number>()
+function buildTaskLogByDay(employeeEntries: ExportEntry[], periodDates: string[]): TaskLogDay[] {
+  const byDate = new Map<string, ExportEntry[]>()
   for (const e of employeeEntries) {
-    map.set(e.date, (map.get(e.date) ?? 0) + e.hours)
+    if (!byDate.has(e.date)) byDate.set(e.date, [])
+    byDate.get(e.date)!.push(e)
   }
-  return periodDates.map(d => ({
-    date: d,
-    ...formatDayHeader(new Date(d + 'T00:00:00')),
-    hours: map.get(d) ?? 0,
-  }))
+  return periodDates
+    .filter(d => byDate.has(d))
+    .map(date => {
+      const rows = byDate.get(date)!
+      return {
+        date,
+        ...formatDayHeader(new Date(date + 'T00:00:00')),
+        rows,
+        hours: rows.reduce((sum, r) => sum + r.hours, 0),
+      }
+    })
+}
+
+function ClockedTimeByDay({
+  sessions,
+  periodDates,
+}: {
+  sessions: ExportClockSession[]
+  periodDates: string[]
+}) {
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
+
+  function toggleDate(date: string) {
+    setExpandedDates(prev => {
+      const next = new Set(prev)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
+      return next
+    })
+  }
+
+  const byDate = new Map<string, ExportClockSession[]>()
+  for (const s of sessions) {
+    if (!byDate.has(s.date)) byDate.set(s.date, [])
+    byDate.get(s.date)!.push(s)
+  }
+
+  const rows = periodDates.map(d => {
+    const daySessions = byDate.get(d) ?? []
+    return {
+      date: d,
+      ...formatDayHeader(new Date(d + 'T00:00:00')),
+      sessions: daySessions,
+      hours: daySessions.reduce((sum, s) => sum + roundToQuarterHour(s.hours ?? 0), 0),
+    }
+  })
+
+  return (
+    <div className="overflow-hidden rounded border border-slate-200">
+      {rows.map(row => {
+        const isWeekend = new Date(row.date + 'T00:00:00').getDay() % 6 === 0
+        const hasSessions = row.sessions.length > 0
+        const isExpanded = expandedDates.has(row.date)
+        return (
+          <div key={row.date} className="border-t border-slate-200 first:border-t-0">
+            <button
+              onClick={() => hasSessions && toggleDate(row.date)}
+              disabled={!hasSessions}
+              className={[
+                'flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors',
+                isWeekend ? 'bg-slate-50/60' : 'bg-white',
+                hasSessions ? 'hover:bg-slate-50' : 'cursor-default',
+              ].join(' ')}
+            >
+              <span className="flex items-center gap-1.5">
+                {hasSessions && (
+                  <svg
+                    className={`w-3 h-3 shrink-0 text-slate-400 transition-transform ${isExpanded ? '' : '-rotate-90'}`}
+                    viewBox="0 0 16 16" fill="none"
+                  >
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+                <span className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
+                  {row.day} {row.shortDate}
+                </span>
+              </span>
+              <span className={`text-sm font-semibold ${row.hours > 0 ? 'text-slate-700' : 'text-slate-300'}`}>
+                {formatHours(row.hours)}
+              </span>
+            </button>
+
+            {isExpanded && hasSessions && (
+              <div className="border-t border-slate-100 bg-slate-50/40 px-3 py-2">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="text-left font-semibold uppercase tracking-wide text-slate-400">
+                      <th className="py-1 pr-3">Clock In</th>
+                      <th className="py-1 pr-3">Clock Out</th>
+                      <th className="py-1 pr-3 text-right">Hours</th>
+                      <th className="py-1">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {row.sessions.map(s => (
+                      <tr key={s.id}>
+                        <td className="py-1.5 pr-3 text-slate-600">{formatSessionTime(s.clockedInAt)}</td>
+                        <td className="py-1.5 pr-3 text-slate-600">
+                          {s.clockedOutAt ? formatSessionTime(s.clockedOutAt) : (
+                            <span className="font-medium text-green-600">Currently clocked in</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right font-semibold text-slate-700">
+                          {s.hours !== null ? formatHours(s.hours) : '—'}
+                        </td>
+                        <td className="py-1.5 text-slate-500">{s.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function CollapsibleSection({
@@ -531,74 +631,64 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
 
                           <CollapsibleSection title={`Time by Task — ${formatPeriodRange(periodStart)}`}>
                             {(() => {
-                              const breakdown = buildTaskBreakdown(entries.filter(e => e.userId === u.id))
-                              if (breakdown.length === 0) {
+                              const days = buildTaskLogByDay(entries.filter(e => e.userId === u.id), periodDates)
+                              if (days.length === 0) {
                                 return <p className="text-sm text-slate-400">No entries logged this pay period.</p>
                               }
                               return (
-                                <div className="overflow-x-auto rounded border border-slate-200">
-                                  <table className="min-w-full text-sm">
-                                    <thead>
-                                      <tr className="bg-slate-50 border-b border-slate-200">
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Client
-                                        </th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Project
-                                        </th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Task
-                                        </th>
-                                        <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Hours
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                      {breakdown.map(row => (
-                                        <tr key={`${row.clientName}|${row.projectName}|${row.taskName}`} className="hover:bg-slate-50/50">
-                                          <td className="px-3 py-2 text-sm text-slate-700">{row.clientName}</td>
-                                          <td className="px-3 py-2 text-sm text-slate-500">{row.projectName ?? '—'}</td>
-                                          <td className="px-3 py-2 text-sm text-slate-700">{row.taskName}</td>
-                                          <td className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
-                                            {formatHours(row.hours)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                <div className="space-y-3">
+                                  {days.map(day => (
+                                    <div key={day.date} className="overflow-hidden rounded border border-slate-200">
+                                      <div className="flex items-center justify-between bg-slate-100 px-3 py-2">
+                                        <span className="text-sm font-semibold text-slate-700">
+                                          {day.day} {day.shortDate}
+                                        </span>
+                                        <span className="text-sm font-semibold text-slate-700">
+                                          {formatHours(day.hours)}
+                                        </span>
+                                      </div>
+                                      <table className="min-w-full text-sm">
+                                        <thead>
+                                          <tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                              Client
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                              Project
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                              Task
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                              Hours
+                                            </th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {day.rows.map(row => (
+                                            <tr key={row.id} className="hover:bg-slate-50/50">
+                                              <td className="px-3 py-2 text-sm text-slate-700">{row.clientName}</td>
+                                              <td className="px-3 py-2 text-sm text-slate-500">{row.projectName ?? '—'}</td>
+                                              <td className="px-3 py-2 text-sm text-slate-700">{row.taskName}</td>
+                                              <td className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
+                                                {formatHours(row.hours)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ))}
                                 </div>
                               )
                             })()}
                           </CollapsibleSection>
 
-                          <CollapsibleSection title={`Hours Logged — ${formatPeriodRange(periodStart)}`}>
-                            {(() => {
-                              const byDate = buildHoursByDate(entries.filter(e => e.userId === u.id), periodDates)
-                              return (
-                                <div className="overflow-hidden rounded border border-slate-200">
-                                  {byDate.map(row => {
-                                    const isWeekend = new Date(row.date + 'T00:00:00').getDay() % 6 === 0
-                                    return (
-                                      <div
-                                        key={row.date}
-                                        className={[
-                                          'flex items-center justify-between border-t border-slate-200 px-3 py-2.5 first:border-t-0',
-                                          isWeekend ? 'bg-slate-50/60' : 'bg-white',
-                                        ].join(' ')}
-                                      >
-                                        <span className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
-                                          {row.day} {row.shortDate}
-                                        </span>
-                                        <span className={`text-sm font-semibold ${row.hours > 0 ? 'text-slate-700' : 'text-slate-300'}`}>
-                                          {formatHours(row.hours)}
-                                        </span>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })()}
+                          <CollapsibleSection title={`Clocked Time — ${formatPeriodRange(periodStart)}`}>
+                            <ClockedTimeByDay
+                              sessions={clockSessions.filter(s => s.userId === u.id)}
+                              periodDates={periodDates}
+                            />
                           </CollapsibleSection>
                         </td>
                       </tr>
