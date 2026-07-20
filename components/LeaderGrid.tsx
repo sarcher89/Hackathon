@@ -1,7 +1,6 @@
 'use client'
 
 import { Fragment, useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
 import {
   markEntriesExported,
   getEmployeePayPeriods,
@@ -13,7 +12,7 @@ import {
   type PayPeriodSummary,
 } from '@/app/actions/leader'
 import { generatePayrollWorkbook } from '@/app/actions/export'
-import { formatDayHeader, formatPeriodRange } from '@/lib/dates'
+import { formatDayHeader, formatPeriodRange, getPeriodDates, toISODate } from '@/lib/dates'
 
 export interface ExportEntry {
   id: string
@@ -43,7 +42,6 @@ export interface ExportClockSession {
 
 interface Props {
   weekStart: string
-  periodDates: string[]
   entries: ExportEntry[]
   clockSessions: ExportClockSession[]
 }
@@ -239,13 +237,22 @@ function CollapsibleSection({
   )
 }
 
-export default function LeaderGrid({ weekStart, periodDates, entries, clockSessions }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
+export default function LeaderGrid({
+  weekStart: initialWeekStart,
+  entries: initialEntries,
+  clockSessions: initialClockSessions,
+}: Props) {
+  // Period selection is local to this component — switching periods here
+  // never touches the URL, so it can't leak into other tabs, and other
+  // tabs' period changes can't leak in here either.
+  const [weekStart, setWeekStart] = useState(initialWeekStart)
+  const [entries, setEntries] = useState<ExportEntry[]>(initialEntries)
+  const [clockSessions, setClockSessions] = useState<ExportClockSession[]>(initialClockSessions)
+  const [loadingPeriod, setLoadingPeriod] = useState(false)
 
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
-    new Set(entries.filter(e => e.exported).map(e => e.id))
+    new Set(initialEntries.filter(e => e.exported).map(e => e.id))
   )
 
   const [periodOptions, setPeriodOptions] = useState<PayPeriodSummary[]>([])
@@ -267,6 +274,7 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
   const [downloadingTeam, setDownloadingTeam] = useState(false)
 
   const periodStart = new Date(weekStart + 'T00:00:00')
+  const periodDates = getPeriodDates(periodStart).map(toISODate)
   const dayHeaders = periodDates.map(d => ({
     isoDate: d,
     ...formatDayHeader(new Date(d + 'T00:00:00')),
@@ -389,8 +397,17 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
   const allPeriodsSelected = periods.length > 0 && selectedPeriods.size === periods.length
   const columnCount = periodDates.length + 2
 
-  function handlePeriodChange(next: string) {
-    router.push(`${pathname}?week=${next}`)
+  async function handlePeriodChange(next: string) {
+    setLoadingPeriod(true)
+    const [nextEntries, nextSessions] = await Promise.all([
+      getPayPeriodEntriesAllUsers([next]),
+      getPayPeriodClockSessionsAllUsers([next]),
+    ])
+    setWeekStart(next)
+    setEntries(nextEntries)
+    setClockSessions(nextSessions)
+    setExportedIds(new Set(nextEntries.filter(e => e.exported).map(e => e.id)))
+    setLoadingPeriod(false)
   }
 
   async function toggleTeamPicker() {
@@ -459,7 +476,8 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
         <select
           value={weekStart}
           onChange={e => handlePeriodChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
+          disabled={loadingPeriod}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300 disabled:opacity-50"
         >
           {!periodOptions.some(p => p.periodStart === weekStart) && (
             <option value={weekStart}>{formatPeriodRange(periodStart)}</option>
