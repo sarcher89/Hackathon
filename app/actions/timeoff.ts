@@ -124,7 +124,7 @@ export async function updateTimeOffRequestStatus(
 
   const { data: request, error: fetchError } = await service
     .from('time_off_requests')
-    .select('user_id, hours, type, status')
+    .select('user_id, hours, type, status, request_date')
     .eq('id', requestId)
     .maybeSingle()
 
@@ -156,6 +156,23 @@ export async function updateTimeOffRequestStatus(
       const next = Math.max(0, current - request.hours)
       await service.from('users').update({ [column]: next }).eq('id', request.user_id)
     }
+  }
+
+  // Notify the employee of the decision, but only on an actual status change.
+  if (request.status !== status) {
+    const dateLabel = new Date(request.request_date + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    const { error: notifError } = await service.from('notifications').insert({
+      user_id: request.user_id,
+      from_user_id: caller.id,
+      type: status === 'approved' ? 'time_off_approved' : 'time_off_denied',
+      message: `Your ${request.type} request for ${dateLabel} was ${status}`,
+      data: { requestId, date: request.request_date, hours: request.hours, type: request.type },
+    })
+    if (notifError) console.error('Failed to insert time off decision notification:', notifError.message)
   }
 
   return { success: true }

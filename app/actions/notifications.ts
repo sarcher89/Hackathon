@@ -31,15 +31,3 @@ export async function markNotificationRead(notificationId: string): Promise<void
     .eq('id', notificationId)
     .eq('user_id', user.id)
 }
-
-export async function markAllNotificationsRead(): Promise<void> {
-  const supabase = createSupabaseServerClient()
-  const user = await getOrCreateUser(supabase)
-  if (!user) return
-
-  await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('user_id', user.id)
-    .eq('read', false)
-}

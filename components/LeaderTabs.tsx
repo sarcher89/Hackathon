@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import ClockInOut from '@/components/ClockInOut'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeGrid from '@/components/TimeGrid'
@@ -24,6 +25,8 @@ const ADMIN_TABS: { key: Tab; label: string }[] = [
   { key: 'team', label: 'Employee Information' },
   { key: 'requests', label: 'Requests' },
 ]
+
+const ALL_TAB_KEYS = new Set<Tab>([...USER_TABS, ...ADMIN_TABS].map(t => t.key))
 
 interface ClockSession {
   id: string
@@ -73,7 +76,11 @@ export default function LeaderTabs({
   hourlyWage,
   balances,
 }: Props) {
-  const [tab, setTab] = useState<Tab>('clock')
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(
+    requestedTab && ALL_TAB_KEYS.has(requestedTab) ? requestedTab : 'clock'
+  )
 
   return (
     <div>

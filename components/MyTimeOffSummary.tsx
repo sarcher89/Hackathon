@@ -16,13 +16,14 @@ function formatDate(iso: string): string {
   })
 }
 
-function RequestRow({ request }: { request: MyTimeOffRequest }) {
+function RequestRow({ request, dotClass }: { request: MyTimeOffRequest; dotClass: string }) {
   return (
-    <div className="flex items-center justify-between rounded border border-slate-200 bg-white px-2.5 py-1.5">
-      <span className="text-xs text-slate-700">
+    <div className="flex items-center justify-between px-3 py-1.5 text-xs">
+      <span className="flex items-center gap-1.5 text-slate-600">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
         {formatDate(request.date)} &middot; {TYPE_LABEL[request.type] ?? request.type}
       </span>
-      <span className="text-xs font-medium text-slate-500">{request.hours}h</span>
+      <span className="font-medium text-slate-500">{request.hours}h</span>
     </div>
   )
 }
@@ -46,36 +47,27 @@ export default function MyTimeOffSummary() {
   if (approved.length === 0 && pending.length === 0) return null
 
   return (
-    <div className="mt-4 space-y-3">
-      <div>
-        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Approved Time Off
-        </h4>
-        {approved.length === 0 ? (
-          <p className="text-xs text-slate-400">None yet.</p>
-        ) : (
-          <div className="space-y-1">
-            {approved.map(r => (
-              <RequestRow key={r.id} request={r} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Pending Time Off
-        </h4>
-        {pending.length === 0 ? (
-          <p className="text-xs text-slate-400">None yet.</p>
-        ) : (
-          <div className="space-y-1">
-            {pending.map(r => (
-              <RequestRow key={r.id} request={r} />
-            ))}
-          </div>
-        )}
-      </div>
+    <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+      {approved.length > 0 && (
+        <div className="py-1.5">
+          <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            Approved ({approved.length})
+          </p>
+          {approved.map(r => (
+            <RequestRow key={r.id} request={r} dotClass="bg-green-500" />
+          ))}
+        </div>
+      )}
+      {pending.length > 0 && (
+        <div className="py-1.5">
+          <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            Pending ({pending.length})
+          </p>
+          {pending.map(r => (
+            <RequestRow key={r.id} request={r} dotClass="bg-amber-400" />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
