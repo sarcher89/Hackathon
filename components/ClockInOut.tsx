@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { clockIn, clockOut } from '@/app/actions/clock'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeOffModal from '@/components/TimeOffModal'
 import MyTimeOffSummary from '@/components/MyTimeOffSummary'
+import AttributeTimeModal from '@/components/AttributeTimeModal'
+import { Client, Project, Task } from '@/types/database'
 
 interface ClockSession {
   id: string
@@ -22,6 +25,9 @@ interface Props {
   weekStart?: string
   clockSessionRows?: ClockSessionRow[]
   balances?: Balances
+  clients?: Client[]
+  projectsByClient?: Record<string, Project[]>
+  tasks?: Task[]
 }
 
 function formatElapsed(ms: number): string {
@@ -125,7 +131,16 @@ function AnalogClock({ now }: { now: Date | null }) {
   )
 }
 
-export default function ClockInOut({ initialSession, weekStart, clockSessionRows, balances }: Props) {
+export default function ClockInOut({
+  initialSession,
+  weekStart,
+  clockSessionRows,
+  balances,
+  clients,
+  projectsByClient,
+  tasks,
+}: Props) {
+  const router = useRouter()
   const [session, setSession] = useState<ClockSession | null>(initialSession)
   const [elapsed, setElapsed] = useState('')
   const [localTime, setLocalTime] = useState('')
@@ -137,6 +152,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
   const [error, setError] = useState<string | null>(null)
   const [showTimeOff, setShowTimeOff] = useState(false)
   const [timeOffRefreshKey, setTimeOffRefreshKey] = useState(0)
+  const [attribution, setAttribution] = useState<{ date: string; hours: number } | null>(null)
 
   useEffect(() => {
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -183,7 +199,12 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
     }
     setSession(null)
     setClockedOutAt(outTime)
-    if (result.hours !== null) setLastHours(result.hours)
+    if (result.hours !== null) {
+      setLastHours(result.hours)
+      if (result.entryDate && result.hours > 0) {
+        setAttribution({ date: result.entryDate, hours: result.hours })
+      }
+    }
     setLoading(false)
   }
 
@@ -327,6 +348,21 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
           balances={balances}
           onClose={() => setShowTimeOff(false)}
           onSubmitted={() => setTimeOffRefreshKey(k => k + 1)}
+        />
+      )}
+
+      {attribution && clients && projectsByClient && tasks && (
+        <AttributeTimeModal
+          date={attribution.date}
+          totalHours={attribution.hours}
+          clients={clients}
+          projectsByClient={projectsByClient}
+          tasks={tasks}
+          onClose={() => setAttribution(null)}
+          onSaved={() => {
+            setAttribution(null)
+            router.refresh()
+          }}
         />
       )}
     </div>

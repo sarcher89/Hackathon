@@ -136,6 +136,9 @@ export default function LeaderTabs({
           weekStart={weekStart}
           clockSessionRows={clockSessionRows}
           balances={balances}
+          clients={clients}
+          projectsByClient={projectsByClient}
+          tasks={tasks}
         />
       )}
       {tab === 'timesheet' && (
@@ -154,6 +157,7 @@ export default function LeaderTabs({
           projectsByClient={projectsByClient}
           tasks={tasks}
           initialRows={initialRows}
+          clockSessionRows={clockSessionRows}
         />
       )}
       {tab === 'paystub' && (

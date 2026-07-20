@@ -60,14 +60,16 @@ export async function clockIn(): Promise<{
   return { session: { id: data.id, clockedInAt: data.clocked_in_at } }
 }
 
-export async function clockOut(sessionId: string): Promise<{ hours: number | null; error?: string }> {
+export async function clockOut(
+  sessionId: string
+): Promise<{ hours: number | null; entryDate?: string; error?: string }> {
   const supabase = createSupabaseServerClient()
   const user = await getOrCreateUser(supabase)
   if (!user) return { hours: null, error: 'Not authenticated' }
 
   const { data: session } = await supabase
     .from('clock_sessions')
-    .select('clocked_in_at')
+    .select('clocked_in_at, entry_date')
     .eq('id', sessionId)
     .eq('user_id', user.id)
     .single()
@@ -87,5 +89,5 @@ export async function clockOut(sessionId: string): Promise<{ hours: number | nul
     .eq('user_id', user.id)
 
   if (error) return { hours: null, error: error.message }
-  return { hours }
+  return { hours, entryDate: session.entry_date }
 }
