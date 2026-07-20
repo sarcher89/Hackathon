@@ -2,11 +2,8 @@
 
 import { useState } from 'react'
 import { saveTimeEntry } from '@/app/actions/time-entries'
-import { createTask } from '@/app/actions/tasks'
-import { Client, Project, Task, TaskSystem } from '@/types/database'
+import { Client, Project, Task } from '@/types/database'
 import Combobox from '@/components/Combobox'
-
-const TASK_SYSTEMS: TaskSystem[] = ['denticon', 'cloud9', 'both']
 
 interface AllocationRow {
   id: string
@@ -64,37 +61,6 @@ export default function AttributeTimeModal({
   ])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const [extraTasks, setExtraTasks] = useState<Task[]>([])
-  const [addingTaskForRow, setAddingTaskForRow] = useState<string | null>(null)
-  const [newTaskName, setNewTaskName] = useState('')
-  const [newTaskCategory, setNewTaskCategory] = useState('')
-  const [newTaskSystem, setNewTaskSystem] = useState<TaskSystem>('both')
-  const [addingTask, setAddingTask] = useState(false)
-
-  const allTasks = [...tasks, ...extraTasks]
-
-  function resetNewTaskForm() {
-    setAddingTaskForRow(null)
-    setNewTaskName('')
-    setNewTaskCategory('')
-    setNewTaskSystem('both')
-  }
-
-  async function handleAddTask(rowId: string) {
-    const name = newTaskName.trim()
-    if (!name) return
-    setAddingTask(true)
-    const result = await createTask(name, { category: newTaskCategory, system: newTaskSystem })
-    setAddingTask(false)
-    if (!result.success) {
-      setError(result.error)
-      return
-    }
-    setExtraTasks(prev => [...prev, result.task])
-    updateRow(rowId, { taskId: result.task.id })
-    resetNewTaskForm()
-  }
 
   const allocated = rows.reduce((sum, r) => sum + (parseFloat(r.hours) || 0), 0)
   const remaining = Math.round((totalHours - allocated) * 100) / 100
@@ -160,7 +126,7 @@ export default function AttributeTimeModal({
 
           <div className="space-y-3">
             {rows.map(row => {
-              const clientTasks = getTasksForClient(allTasks, clients, row.clientId)
+              const clientTasks = getTasksForClient(tasks, clients, row.clientId)
               const projects = row.clientId ? (projectsByClient[row.clientId] ?? []) : []
               return (
                 <div key={row.id}>
@@ -211,58 +177,6 @@ export default function AttributeTimeModal({
                       </button>
                     )}
                   </div>
-
-                  {addingTaskForRow === row.id ? (
-                    <div className="mt-1.5 flex items-center gap-2 pl-1">
-                      <input
-                        type="text"
-                        autoFocus
-                        value={newTaskName}
-                        onChange={e => setNewTaskName(e.target.value)}
-                        placeholder="Task name"
-                        className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
-                      />
-                      <input
-                        type="text"
-                        value={newTaskCategory}
-                        onChange={e => setNewTaskCategory(e.target.value)}
-                        placeholder="Category"
-                        className="w-28 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
-                      />
-                      <select
-                        value={newTaskSystem}
-                        onChange={e => setNewTaskSystem(e.target.value as TaskSystem)}
-                        className="rounded border border-slate-300 px-2 py-1 text-xs capitalize text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
-                      >
-                        {TASK_SYSTEMS.map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => handleAddTask(row.id)}
-                        disabled={addingTask || !newTaskName.trim()}
-                        className="rounded px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
-                        style={{ backgroundColor: '#0B1460' }}
-                      >
-                        {addingTask ? 'Adding…' : 'Add'}
-                      </button>
-                      <button
-                        onClick={resetNewTaskForm}
-                        className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setAddingTaskForRow(row.id)}
-                      disabled={!row.clientId}
-                      className="mt-1 pl-1 text-xs font-medium hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
-                      style={{ color: row.clientId ? '#0B1460' : undefined }}
-                    >
-                      + Add task
-                    </button>
-                  )}
                 </div>
               )
             })}

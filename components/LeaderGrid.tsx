@@ -1,6 +1,7 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import {
   markEntriesExported,
   getEmployeePayPeriods,
@@ -239,10 +240,18 @@ function CollapsibleSection({
 }
 
 export default function LeaderGrid({ weekStart, periodDates, entries, clockSessions }: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
+
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
     new Set(entries.filter(e => e.exported).map(e => e.id))
   )
+
+  const [periodOptions, setPeriodOptions] = useState<PayPeriodSummary[]>([])
+  useEffect(() => {
+    getAllPayPeriods().then(setPeriodOptions)
+  }, [])
 
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
   const [periods, setPeriods] = useState<PayPeriodSummary[]>([])
@@ -358,6 +367,10 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
   const allPeriodsSelected = periods.length > 0 && selectedPeriods.size === periods.length
   const columnCount = periodDates.length + 2
 
+  function handlePeriodChange(next: string) {
+    router.push(`${pathname}?week=${next}`)
+  }
+
   async function toggleTeamPicker() {
     if (showTeamPicker) {
       setShowTeamPicker(false)
@@ -419,8 +432,22 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
 
   return (
     <div>
-      {/* Current pay period */}
-      <div className="mb-4 flex items-center justify-center">
+      {/* Pay period selector */}
+      <div className="mb-4 flex items-center justify-between">
+        <select
+          value={weekStart}
+          onChange={e => handlePeriodChange(e.target.value)}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
+        >
+          {!periodOptions.some(p => p.periodStart === weekStart) && (
+            <option value={weekStart}>{formatPeriodRange(periodStart)}</option>
+          )}
+          {periodOptions.map(p => (
+            <option key={p.periodStart} value={p.periodStart}>
+              {p.label}
+            </option>
+          ))}
+        </select>
         <span className="text-sm font-semibold text-slate-700">
           {formatPeriodRange(periodStart)}
         </span>
