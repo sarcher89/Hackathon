@@ -2,6 +2,7 @@
 
 import ExcelJS from 'exceljs'
 import type { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
+import { roundToQuarterHour } from '@/lib/dates'
 
 const NAVY = 'FF0B1460'
 const HEADER_TEXT = 'FFFFFFFF'
@@ -54,7 +55,9 @@ function sumEntries(entries: ExportEntry[]): number {
 }
 
 function sumSessions(sessions: ExportClockSession[]): number {
-  return Math.round(sessions.reduce((s, sess) => s + (sess.hours ?? 0), 0) * 100) / 100
+  // Round each session to the nearest 15 minutes before summing so the
+  // comparison against task-logged hours doesn't show stray minutes.
+  return Math.round(sessions.reduce((s, sess) => s + roundToQuarterHour(sess.hours ?? 0), 0) * 100) / 100
 }
 
 function sanitizeSheetName(name: string, used: Set<string>): string {
@@ -182,6 +185,27 @@ function buildEmployeeSheet(
       rowIndex++
     }
 
+    // Day total — sits above the Task Log detail so it reads right after
+    // the clock times it reconciles against.
+    sheet.mergeCells(rowIndex, 1, rowIndex, 4)
+    const dayTotalLabel = sheet.getCell(rowIndex, 1)
+    dayTotalLabel.value = `Day Total (Clocked: ${sumSessions(daySessions)}h)`
+    dayTotalLabel.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
+    dayTotalLabel.alignment = { horizontal: 'right' }
+
+    const dayTotalHours = sheet.getCell(rowIndex, 5)
+    dayTotalHours.value = sumEntries(dayEntries)
+    dayTotalHours.numFmt = '0.00'
+    dayTotalHours.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
+    dayTotalHours.alignment = { horizontal: 'center' }
+
+    for (let i = 1; i <= columnCount; i++) {
+      const cell = sheet.getCell(rowIndex, i)
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAY_TOTAL_FILL } }
+      cell.border = ALL_BORDERS
+    }
+    rowIndex++
+
     // Task Log — secondary, supporting detail: smaller and muted so it
     // reads as backup information behind the clock times above.
     styleSectionCaption(sheet, rowIndex, columnCount, 'TASK LOG', TASK_CAPTION_TEXT)
@@ -218,25 +242,6 @@ function buildEmployeeSheet(
       rowIndex++
     }
 
-    // Day total
-    sheet.mergeCells(rowIndex, 1, rowIndex, 4)
-    const dayTotalLabel = sheet.getCell(rowIndex, 1)
-    dayTotalLabel.value = `Day Total (Clocked: ${sumSessions(daySessions)}h)`
-    dayTotalLabel.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
-    dayTotalLabel.alignment = { horizontal: 'right' }
-
-    const dayTotalHours = sheet.getCell(rowIndex, 5)
-    dayTotalHours.value = sumEntries(dayEntries)
-    dayTotalHours.numFmt = '0.00'
-    dayTotalHours.font = { bold: true, color: { argb: SUBHEADER_TEXT } }
-    dayTotalHours.alignment = { horizontal: 'center' }
-
-    for (let i = 1; i <= columnCount; i++) {
-      const cell = sheet.getCell(rowIndex, i)
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAY_TOTAL_FILL } }
-      cell.border = ALL_BORDERS
-    }
-    rowIndex++
     rowIndex++ // spacer row between dates
   }
 

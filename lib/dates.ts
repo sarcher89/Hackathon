@@ -1,3 +1,10 @@
+// Rounds to the nearest quarter hour (15 minutes) — used when comparing
+// clocked hours against task-logged hours so stray minutes don't show up
+// as a mismatch.
+export function roundToQuarterHour(hours: number): number {
+  return Math.round(hours * 4) / 4
+}
+
 export function getMondayOfWeek(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay() // 0 = Sun

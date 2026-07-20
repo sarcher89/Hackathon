@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Client, Project, Task } from '@/types/database'
 import { saveTimeEntry, clearRowEntries, getMyProjectLogPeriods, type MyPeriodOption } from '@/app/actions/time-entries'
-import { formatDayHeader, getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
+import { formatDayHeader, getPeriodStart, formatPeriodRange, toISODate, roundToQuarterHour } from '@/lib/dates'
 import Combobox from '@/components/Combobox'
 import { ClockSessionRow } from '@/components/TimeSheet'
 
@@ -223,7 +223,7 @@ export default function TimeGrid({
   const clockedByDate: Record<string, number> = {}
   for (const s of clockSessionRows ?? []) {
     if (s.hours === null) continue
-    clockedByDate[s.date] = (clockedByDate[s.date] ?? 0) + s.hours
+    clockedByDate[s.date] = (clockedByDate[s.date] ?? 0) + roundToQuarterHour(s.hours)
   }
 
   return (
