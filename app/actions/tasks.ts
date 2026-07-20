@@ -2,10 +2,11 @@
 
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { Task } from '@/types/database'
+import { Task, TaskSystem } from '@/types/database'
 
 export async function createTask(
-  name: string
+  name: string,
+  options?: { category?: string; system?: TaskSystem }
 ): Promise<{ success: true; task: Task } | { success: false; error: string }> {
   const supabase = createSupabaseServerClient()
   const user = await getOrCreateUser(supabase)
@@ -16,7 +17,12 @@ export async function createTask(
 
   const { data, error } = await createSupabaseServiceClient()
     .from('tasks')
-    .insert({ name: trimmed, category: 'Custom', system: 'both', sort_order: 999 })
+    .insert({
+      name: trimmed,
+      category: options?.category?.trim() || 'Custom',
+      system: options?.system ?? 'both',
+      sort_order: 999,
+    })
     .select('*')
     .single()
 
