@@ -51,6 +51,9 @@ export async function generatePayrollWorkbook(
   })
   sheet.columns = COLUMNS.map(c => ({ width: c.width }))
   sheet.properties.outlineProperties = { summaryBelow: true, summaryRight: false }
+  // Must match the deepest outlineLevel used below (task rows = 2), or Excel
+  // never reserves the outline gutter and the +/- expand controls don't render.
+  sheet.properties.outlineLevelRow = 2
 
   // Title block
   sheet.mergeCells(1, 1, 1, COLUMNS.length)
@@ -112,7 +115,7 @@ export async function generatePayrollWorkbook(
       for (const e of dayEntries) {
         const { date, day } = formatDateLabel(e.date)
         const row = sheet.getRow(rowIndex)
-        row.outlineLevel = 1
+        row.outlineLevel = 2
         row.hidden = true
         const values = [
           e.userName,
@@ -137,10 +140,11 @@ export async function generatePayrollWorkbook(
         rowIndex++
       }
 
-      // Collapsible summary row for this date — the +/- outline control sits here
-      // since the detail rows above are hidden/outlineLevel 1 and this row is level 0.
+      // Summary row for this date. Sits at outlineLevel 1 (nested inside the
+      // employee's level-0 section) so collapsing the employee also hides these.
       const { date: dateLabel, day: dayLabel } = formatDateLabel(dateIso)
       const dateRow = sheet.getRow(rowIndex)
+      dateRow.outlineLevel = 1
       sheet.mergeCells(rowIndex, 1, rowIndex, 8)
       const dateLabelCell = dateRow.getCell(1)
       dateLabelCell.value = `${group[0]?.userName ?? ''} — ${dateLabel} (${dayLabel}) — ${dayEntries.length} ${dayEntries.length === 1 ? 'entry' : 'entries'}`
