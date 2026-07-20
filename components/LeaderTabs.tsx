@@ -156,7 +156,6 @@ export default function LeaderTabs({
           weekStart={weekStart}
           periodDates={periodDates}
           entries={entries}
-          employees={users.map(u => ({ id: u.id, name: u.full_name || u.email, email: u.email }))}
         />
       )}
       {tab === 'team' && (
