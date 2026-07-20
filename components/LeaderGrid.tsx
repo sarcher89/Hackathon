@@ -1,14 +1,13 @@
 'use client'
 
 import { Fragment, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   markEntriesExported,
   getEmployeePayPeriods,
   getPayPeriodEntries,
   type PayPeriodSummary,
 } from '@/app/actions/leader'
-import { formatDayHeader, formatPeriodRange, offsetPeriod, toISODate } from '@/lib/dates'
+import { formatDayHeader, formatPeriodRange } from '@/lib/dates'
 
 export interface ExportEntry {
   id: string
@@ -73,7 +72,6 @@ function slugify(value: string): string {
 }
 
 export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
-  const router = useRouter()
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
     new Set(entries.filter(e => e.exported).map(e => e.id))
@@ -110,11 +108,6 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
 
   const newEntries = entries.filter(e => !exportedIds.has(e.id))
   const hasNew = newEntries.length > 0
-
-  function navigatePeriod(offset: number) {
-    const next = toISODate(offsetPeriod(periodStart, offset))
-    router.push(`/leader?week=${next}`)
-  }
 
   async function handleExport(entriesToExport: ExportEntry[]) {
     if (entriesToExport.length === 0) return
@@ -180,23 +173,11 @@ export default function LeaderGrid({ weekStart, periodDates, entries }: Props) {
 
   return (
     <div>
-      {/* Period navigation */}
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          onClick={() => navigatePeriod(-1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-        >
-          ← Prev
-        </button>
+      {/* Current pay period */}
+      <div className="mb-4 flex items-center justify-center">
         <span className="text-sm font-semibold text-slate-700">
           {formatPeriodRange(periodStart)}
         </span>
-        <button
-          onClick={() => navigatePeriod(1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-        >
-          Next →
-        </button>
       </div>
 
       {/* Export buttons */}

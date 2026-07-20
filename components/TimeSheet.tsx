@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { getPeriodStart, getPeriodDates, offsetPeriod, formatPeriodRange, toISODate } from '@/lib/dates'
+import { useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
+import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/lib/dates'
+import { getMyPayPeriods, type MyPayPeriodOption } from '@/app/actions/clock'
 
 export interface ClockSessionRow {
   id: string
@@ -51,9 +52,15 @@ function TimeCell({ iso }: { iso: string }) {
 
 export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
 
   const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
   const periodDates = getPeriodDates(periodStart)
+
+  const [periodOptions, setPeriodOptions] = useState<MyPayPeriodOption[]>([])
+  useEffect(() => {
+    getMyPayPeriods().then(setPeriodOptions)
+  }, [])
 
   const byDate: Record<string, ClockSessionRow[]> = {}
   for (const s of sessions) {
@@ -71,9 +78,8 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     })
   }
 
-  function navigatePeriod(offset: number) {
-    const next = toISODate(offsetPeriod(periodStart, offset))
-    router.push(`/dashboard?week=${next}`)
+  function handlePeriodChange(next: string) {
+    router.push(`${pathname}?week=${next}`)
   }
 
   const periodTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
@@ -83,29 +89,27 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
   return (
     <div>
       <div className="sticky top-0 z-10 bg-white mb-4 flex items-center justify-between px-1 py-2 border-b border-slate-100">
-        <button
-          onClick={() => navigatePeriod(-1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+        <select
+          value={toISODate(periodStart)}
+          onChange={e => handlePeriodChange(e.target.value)}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
         >
-          &larr; Prev
-        </button>
+          {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
+            <option value={toISODate(periodStart)}>{formatPeriodRange(periodStart)}</option>
+          )}
+          {periodOptions.map(p => (
+            <option key={p.periodStart} value={p.periodStart}>
+              {p.label}
+            </option>
+          ))}
+        </select>
 
-        <div className="flex items-center gap-8">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-slate-800 leading-none">
-              {fmtHrs(periodTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">Total</p>
-          </div>
-          <span className="text-sm font-semibold text-slate-600">{formatPeriodRange(periodStart)}</span>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-slate-800 leading-none">
+            {fmtHrs(periodTotal)} <span className="text-base font-semibold text-slate-500">hrs</span>
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Total</p>
         </div>
-
-        <button
-          onClick={() => navigatePeriod(1)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-        >
-          Next &rarr;
-        </button>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">

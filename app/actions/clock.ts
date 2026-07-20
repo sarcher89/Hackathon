@@ -2,7 +2,39 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { toISODate } from '@/lib/dates'
+import { getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
+
+export interface MyPayPeriodOption {
+  periodStart: string
+  label: string
+}
+
+export async function getMyPayPeriods(): Promise<MyPayPeriodOption[]> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('clock_sessions')
+    .select('entry_date')
+    .eq('user_id', user.id)
+    .order('entry_date')
+
+  if (error) return []
+
+  const periodStarts = new Set<string>()
+  periodStarts.add(toISODate(getPeriodStart(new Date())))
+  for (const row of data ?? []) {
+    periodStarts.add(toISODate(getPeriodStart(new Date(row.entry_date + 'T00:00:00'))))
+  }
+
+  return Array.from(periodStarts)
+    .sort((a, b) => b.localeCompare(a))
+    .map(periodStart => ({
+      periodStart,
+      label: formatPeriodRange(new Date(periodStart + 'T00:00:00')),
+    }))
+}
 
 export async function clockIn(): Promise<{
   session: { id: string; clockedInAt: string } | null
