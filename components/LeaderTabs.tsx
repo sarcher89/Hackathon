@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ClockInOut from '@/components/ClockInOut'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
@@ -77,10 +77,17 @@ export default function LeaderTabs({
   balances,
 }: Props) {
   const searchParams = useSearchParams()
-  const requestedTab = searchParams.get('tab') as Tab | null
-  const [tab, setTab] = useState<Tab>(
-    requestedTab && ALL_TAB_KEYS.has(requestedTab) ? requestedTab : 'clock'
-  )
+  const [tab, setTab] = useState<Tab>('clock')
+
+  // Re-derive the tab whenever the ?tab= param changes, not just on mount —
+  // a notification link pushes a new ?tab= while already on this page, which
+  // doesn't remount this component, so a useState initializer alone misses it.
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab') as Tab | null
+    if (requestedTab && ALL_TAB_KEYS.has(requestedTab)) {
+      setTab(requestedTab)
+    }
+  }, [searchParams])
 
   return (
     <div>

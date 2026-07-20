@@ -3,6 +3,45 @@
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
 import { TimeOffType, TimeOffStatus } from '@/types/database'
+import { TIME_OFF_CLIENT_NAME, TIME_OFF_TASK_CATEGORY, TIME_OFF_TYPE_LABEL } from '@/lib/timeoff'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findOrCreateTimeOffClient(service: any): Promise<string> {
+  const { data: existing } = await service
+    .from('clients')
+    .select('id')
+    .eq('name', TIME_OFF_CLIENT_NAME)
+    .maybeSingle()
+  if (existing) return existing.id
+
+  const { data: created, error } = await service
+    .from('clients')
+    .insert({ name: TIME_OFF_CLIENT_NAME, system: 'other', active: true })
+    .select('id')
+    .single()
+  if (error || !created) throw new Error(error?.message ?? 'Failed to create Time Off client')
+  return created.id
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findOrCreateTimeOffTask(service: any, type: TimeOffType): Promise<string> {
+  const name = TIME_OFF_TYPE_LABEL[type]
+  const { data: existing } = await service
+    .from('tasks')
+    .select('id')
+    .eq('name', name)
+    .eq('category', TIME_OFF_TASK_CATEGORY)
+    .maybeSingle()
+  if (existing) return existing.id
+
+  const { data: created, error } = await service
+    .from('tasks')
+    .insert({ name, category: TIME_OFF_TASK_CATEGORY, system: 'both', sort_order: 900 })
+    .select('id')
+    .single()
+  if (error || !created) throw new Error(error?.message ?? 'Failed to create time off task')
+  return created.id
+}
 
 export interface TimeOffEntry {
   date: string
@@ -155,6 +194,44 @@ export async function updateTimeOffRequestStatus(
       const current = (user as any)[column] ?? 0
       const next = Math.max(0, current - request.hours)
       await service.from('users').update({ [column]: next }).eq('id', request.user_id)
+    }
+
+    // Auto-fill the Project Log for that date so the employee doesn't have
+    // to log it themselves — a dedicated "Time Off" client with a task per
+    // time off type, pre-filled with the approved hours.
+    try {
+      const clientId = await findOrCreateTimeOffClient(service)
+      const taskId = await findOrCreateTimeOffTask(service, request.type as TimeOffType)
+
+      const { data: existingEntry } = await service
+        .from('time_entries')
+        .select('id')
+        .eq('user_id', request.user_id)
+        .eq('client_id', clientId)
+        .eq('task_id', taskId)
+        .is('project_id', null)
+        .eq('entry_date', request.request_date)
+        .maybeSingle()
+
+      if (existingEntry) {
+        await service
+          .from('time_entries')
+          .update({ hours: request.hours, exported: false })
+          .eq('id', existingEntry.id)
+      } else {
+        await service.from('time_entries').insert({
+          user_id: request.user_id,
+          client_id: clientId,
+          project_id: null,
+          task_id: taskId,
+          entry_date: request.request_date,
+          hours: request.hours,
+          notes: `Approved ${request.type} time off`,
+          exported: false,
+        })
+      }
+    } catch (e) {
+      console.error('Failed to auto-fill time off entry:', e instanceof Error ? e.message : e)
     }
   }
 
