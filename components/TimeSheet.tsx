@@ -164,7 +164,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
               <th className="px-3 py-2.5 text-left min-w-[110px]">In</th>
               <th className="px-3 py-2.5 text-left min-w-[110px]">Out</th>
               <th className="px-3 py-2.5 text-right w-24">Total</th>
-              {!compact && <th className="w-10 px-2 py-2.5 text-center">Notes</th>}
+              <th className="w-10 px-2 py-2.5 text-center">Notes</th>
             </tr>
           </thead>
 
@@ -258,7 +258,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                     )}
                   </td>
 
-                  {!compact && <td />}
+                  <td />
                 </tr>,
 
                 ...(hasEntries && isExpanded
@@ -304,19 +304,17 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                             </span>
                           </td>
 
-                          {!compact && (
-                            <td className={`px-2 ${ROW_PY} text-center`}>
-                              <button
-                                onClick={() => setNoteSessionId(s.id)}
-                                title={s.notes ?? 'Add note'}
-                                className={s.notes ? 'text-blue-500 hover:text-blue-700 transition-colors' : 'text-slate-300 hover:text-slate-500 transition-colors'}
-                              >
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={s.notes ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.75">
-                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-                                </svg>
-                              </button>
-                            </td>
-                          )}
+                          <td className={`px-2 ${ROW_PY} text-center`}>
+                            <button
+                              onClick={() => setNoteSessionId(s.id)}
+                              title={s.notes ?? 'Add note'}
+                              className={s.notes ? 'text-blue-500 hover:text-blue-700 transition-colors' : 'text-slate-300 hover:text-slate-500 transition-colors'}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill={s.notes ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.75">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          </td>
                         </tr>
                       )
                     })
@@ -333,7 +331,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
               <td className="px-3 py-2.5 text-right text-sm font-bold text-slate-800">
                 {fmtHrs(periodTotal)} hrs
               </td>
-              {!compact && <td />}
+              <td />
             </tr>
           </tfoot>
         </table>

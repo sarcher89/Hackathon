@@ -289,9 +289,6 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
   )
   const periodTotal = dayTotals.reduce((a, b) => a + b, 0)
 
-  const newEntries = entries.filter(e => !exportedIds.has(e.id))
-  const hasNew = newEntries.length > 0
-
   async function handleExport(entriesToExport: ExportEntry[]) {
     if (entriesToExport.length === 0) return
     setExporting(true)
@@ -481,20 +478,18 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
       {/* Export buttons */}
       <div className="mb-4 flex items-center gap-3">
         <button
-          onClick={toggleTeamPicker}
+          onClick={() => handleExport(entries)}
+          disabled={exporting || entries.length === 0}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          Export all as Excel…
+          {exporting ? 'Exporting…' : 'Export Current Pay Period'}
         </button>
-        {hasNew && (
-          <button
-            onClick={() => handleExport(newEntries)}
-            disabled={exporting}
-            className="rounded border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
-          >
-            {exporting ? 'Exporting…' : `Export new only (${newEntries.length} entries)`}
-          </button>
-        )}
+        <button
+          onClick={toggleTeamPicker}
+          className="rounded border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+        >
+          Export by Pay Period…
+        </button>
         {entries.length === 0 && (
           <p className="text-sm text-slate-400">No entries logged this pay period.</p>
         )}
