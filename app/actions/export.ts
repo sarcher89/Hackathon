@@ -5,6 +5,7 @@ import type { ExportEntry } from '@/components/LeaderGrid'
 
 const NAVY = 'FF0B1460'
 const HEADER_TEXT = 'FFFFFFFF'
+const DATE_SUBTOTAL_FILL = 'FFF1F5F9'
 const SUBTOTAL_FILL = 'FFE2E8F0'
 const GRAND_TOTAL_FILL = 'FF0B1460'
 const BAND_FILL = 'FFF8FAFC'
@@ -14,8 +15,8 @@ const THIN_BORDER: Partial<ExcelJS.Border> = { style: 'thin', color: { argb: BOR
 
 const COLUMNS: { header: string; width: number }[] = [
   { header: 'Employee', width: 22 },
-  { header: 'Email', width: 28 },
   { header: 'Date', width: 13 },
+  { header: 'Email', width: 28 },
   { header: 'Day', width: 8 },
   { header: 'Client', width: 20 },
   { header: 'Project', width: 20 },
@@ -49,6 +50,7 @@ export async function generatePayrollWorkbook(
     views: [{ state: 'frozen', ySplit: 5 }],
   })
   sheet.columns = COLUMNS.map(c => ({ width: c.width }))
+  sheet.properties.outlineProperties = { summaryBelow: true, summaryRight: false }
 
   // Title block
   sheet.mergeCells(1, 1, 1, COLUMNS.length)
@@ -98,29 +100,64 @@ export async function generatePayrollWorkbook(
 
   for (const [, group] of employees) {
     bandOn = !bandOn
+
+    // Sub-group each employee's entries by date, preserving ascending date order
+    const byDate = new Map<string, ExportEntry[]>()
     for (const e of group) {
-      const { date, day } = formatDateLabel(e.date)
-      const row = sheet.getRow(rowIndex)
-      const values = [
-        e.userName,
-        e.userEmail,
-        date,
-        day,
-        e.clientName,
-        e.projectName ?? '—',
-        e.taskName,
-        e.taskCategory,
-        e.hours,
-        e.notes ?? '',
-      ]
-      values.forEach((v, i) => {
-        const cell = row.getCell(i + 1)
-        cell.value = v
+      if (!byDate.has(e.date)) byDate.set(e.date, [])
+      byDate.get(e.date)!.push(e)
+    }
+
+    for (const [dateIso, dayEntries] of Array.from(byDate.entries())) {
+      for (const e of dayEntries) {
+        const { date, day } = formatDateLabel(e.date)
+        const row = sheet.getRow(rowIndex)
+        row.outlineLevel = 1
+        row.hidden = true
+        const values = [
+          e.userName,
+          date,
+          e.userEmail,
+          day,
+          e.clientName,
+          e.projectName ?? '—',
+          e.taskName,
+          e.taskCategory,
+          e.hours,
+          e.notes ?? '',
+        ]
+        values.forEach((v, i) => {
+          const cell = row.getCell(i + 1)
+          cell.value = v
+          cell.border = { top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER }
+          cell.alignment = { vertical: 'middle', horizontal: i === 8 ? 'center' : 'left', wrapText: i === 9 }
+          if (i === 8) cell.numFmt = '0.00'
+          if (bandOn) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BAND_FILL } }
+        })
+        rowIndex++
+      }
+
+      // Collapsible summary row for this date — the +/- outline control sits here
+      // since the detail rows above are hidden/outlineLevel 1 and this row is level 0.
+      const { date: dateLabel, day: dayLabel } = formatDateLabel(dateIso)
+      const dateRow = sheet.getRow(rowIndex)
+      sheet.mergeCells(rowIndex, 1, rowIndex, 8)
+      const dateLabelCell = dateRow.getCell(1)
+      dateLabelCell.value = `${group[0]?.userName ?? ''} — ${dateLabel} (${dayLabel}) — ${dayEntries.length} ${dayEntries.length === 1 ? 'entry' : 'entries'}`
+      dateLabelCell.font = { bold: true, color: { argb: 'FF1E293B' } }
+      dateLabelCell.alignment = { horizontal: 'right' }
+
+      const dateHoursCell = dateRow.getCell(9)
+      dateHoursCell.value = sum(dayEntries)
+      dateHoursCell.numFmt = '0.00'
+      dateHoursCell.font = { bold: true, color: { argb: 'FF1E293B' } }
+      dateHoursCell.alignment = { horizontal: 'center' }
+
+      for (let i = 1; i <= COLUMNS.length; i++) {
+        const cell = dateRow.getCell(i)
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DATE_SUBTOTAL_FILL } }
         cell.border = { top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER }
-        cell.alignment = { vertical: 'middle', horizontal: i === 8 ? 'center' : 'left', wrapText: i === 9 }
-        if (i === 8) cell.numFmt = '0.00'
-        if (bandOn) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BAND_FILL } }
-      })
+      }
       rowIndex++
     }
 
