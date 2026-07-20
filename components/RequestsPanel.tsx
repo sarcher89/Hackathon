@@ -115,6 +115,9 @@ function Section({
   onDeny,
   onSelectRequest,
   busyId,
+  collapsible,
+  expanded,
+  onToggle,
 }: {
   title: string
   requests: TimeOffRequestWithUser[]
@@ -123,28 +126,50 @@ function Section({
   onDeny?: (id: string) => void
   onSelectRequest?: (request: TimeOffRequestWithUser) => void
   busyId: string | null
+  collapsible?: boolean
+  expanded?: boolean
+  onToggle?: () => void
 }) {
+  const isOpen = !collapsible || expanded
+
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold text-slate-700">
-        {title} <span className="text-slate-400 font-normal">({requests.length})</span>
-      </h3>
-      {requests.length === 0 ? (
-        <p className="text-sm text-slate-400">Nothing here.</p>
+      {collapsible ? (
+        <button
+          onClick={onToggle}
+          className="mb-2 flex w-full items-center gap-1.5 text-left text-sm font-semibold text-slate-700"
+        >
+          <svg
+            className={`w-3 h-3 shrink-0 text-slate-400 transition-transform ${isOpen ? '' : '-rotate-90'}`}
+            viewBox="0 0 16 16" fill="none"
+          >
+            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {title} <span className="text-slate-400 font-normal">({requests.length})</span>
+        </button>
       ) : (
-        <div className="space-y-2">
-          {requests.map(r => (
-            <RequestCard
-              key={r.id}
-              request={r}
-              actionable={Boolean(actionable)}
-              onApprove={() => onApprove?.(r.id)}
-              onDeny={() => onDeny?.(r.id)}
-              onSelect={onSelectRequest ? () => onSelectRequest(r) : undefined}
-              busy={busyId === r.id}
-            />
-          ))}
-        </div>
+        <h3 className="mb-2 text-sm font-semibold text-slate-700">
+          {title} <span className="text-slate-400 font-normal">({requests.length})</span>
+        </h3>
+      )}
+      {isOpen && (
+        requests.length === 0 ? (
+          <p className="text-sm text-slate-400">Nothing here.</p>
+        ) : (
+          <div className="space-y-2">
+            {requests.map(r => (
+              <RequestCard
+                key={r.id}
+                request={r}
+                actionable={Boolean(actionable)}
+                onApprove={() => onApprove?.(r.id)}
+                onDeny={() => onDeny?.(r.id)}
+                onSelect={onSelectRequest ? () => onSelectRequest(r) : undefined}
+                busy={busyId === r.id}
+              />
+            ))}
+          </div>
+        )
       )}
     </div>
   )
@@ -158,6 +183,16 @@ export default function RequestsPanel() {
   const today = useMemo(() => new Date(), [])
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth())
   const [selectedYear, setSelectedYear] = useState(today.getFullYear())
+
+  const [openSections, setOpenSections] = useState<Set<'approved' | 'denied'>>(new Set())
+  function toggleSection(section: 'approved' | 'denied') {
+    setOpenSections(prev => {
+      const next = new Set(prev)
+      if (next.has(section)) next.delete(section)
+      else next.add(section)
+      return next
+    })
+  }
 
   useEffect(() => {
     getAllTimeOffRequests().then(data => {
@@ -235,8 +270,22 @@ export default function RequestsPanel() {
           onSelectRequest={jumpToRequest}
           busyId={busyId}
         />
-        <Section title="Approved" requests={approved} busyId={busyId} />
-        <Section title="Denied" requests={denied} busyId={busyId} />
+        <Section
+          title="Approved"
+          requests={approved}
+          busyId={busyId}
+          collapsible
+          expanded={openSections.has('approved')}
+          onToggle={() => toggleSection('approved')}
+        />
+        <Section
+          title="Denied"
+          requests={denied}
+          busyId={busyId}
+          collapsible
+          expanded={openSections.has('denied')}
+          onToggle={() => toggleSection('denied')}
+        />
       </div>
 
       {/* Right: calendar */}
