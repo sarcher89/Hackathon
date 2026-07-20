@@ -94,6 +94,9 @@ export default function DashboardTabs({
           weekStart={weekStart}
           clockSessionRows={clockSessionRows}
           balances={balances}
+          clients={clients}
+          projectsByClient={projectsByClient}
+          tasks={tasks}
         />
       )}
       {tab === 'timesheet' && (
@@ -112,6 +115,7 @@ export default function DashboardTabs({
           projectsByClient={projectsByClient}
           tasks={tasks}
           initialRows={initialRows}
+          clockSessionRows={clockSessionRows}
         />
       )}
       {tab === 'paystub' && (

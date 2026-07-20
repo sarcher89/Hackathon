@@ -6,6 +6,7 @@ import { Client, Project, Task } from '@/types/database'
 import { saveTimeEntry, clearRowEntries, getMyProjectLogWeeks, type MyWeekOption } from '@/app/actions/time-entries'
 import { formatDayHeader, formatWeekRange } from '@/lib/dates'
 import Combobox from '@/components/Combobox'
+import { ClockSessionRow } from '@/components/TimeSheet'
 
 interface GridRow {
   rowId: string
@@ -22,6 +23,7 @@ interface TimeGridProps {
   projectsByClient: Record<string, Project[]>
   tasks: Task[]
   initialRows: GridRow[]
+  clockSessionRows?: ClockSessionRow[]
 }
 
 let rowSeq = 0
@@ -57,6 +59,7 @@ export default function TimeGrid({
   projectsByClient,
   tasks,
   initialRows,
+  clockSessionRows,
 }: TimeGridProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -177,6 +180,12 @@ export default function TimeGrid({
   )
   const weekTotal = dayTotals.reduce((a, b) => a + b, 0)
 
+  const clockedByDate: Record<string, number> = {}
+  for (const s of clockSessionRows ?? []) {
+    if (s.hours === null) continue
+    clockedByDate[s.date] = (clockedByDate[s.date] ?? 0) + s.hours
+  }
+
   return (
     <div>
       {/* Week selector */}
@@ -221,6 +230,11 @@ export default function TimeGrid({
                 >
                   <div>{h.day}</div>
                   <div className="text-slate-400 normal-case font-normal">{h.shortDate}</div>
+                  {clockedByDate[h.isoDate] > 0 && (
+                    <div className="text-slate-400 normal-case font-normal" title="Hours clocked in/out that day">
+                      Clocked {formatHours(clockedByDate[h.isoDate])}
+                    </div>
+                  )}
                 </th>
               ))}
               <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">
@@ -340,14 +354,29 @@ export default function TimeGrid({
               >
                 Daily Total
               </td>
-              {dayTotals.map((total, i) => (
-                <td
-                  key={dates[i]}
-                  className="px-2 py-2 text-center text-xs font-bold text-slate-700"
-                >
-                  {formatHours(total)}
-                </td>
-              ))}
+              {dayTotals.map((total, i) => {
+                const clocked = clockedByDate[dates[i]] ?? 0
+                const reconciled = clocked > 0 && Math.abs(total - clocked) < 0.01
+                const mismatched = clocked > 0 && Math.abs(total - clocked) >= 0.01
+                return (
+                  <td
+                    key={dates[i]}
+                    title={
+                      clocked > 0
+                        ? reconciled
+                          ? 'Matches clocked hours'
+                          : `Clocked ${formatHours(clocked)}h, logged ${formatHours(total)}h`
+                        : undefined
+                    }
+                    className={[
+                      'px-2 py-2 text-center text-xs font-bold',
+                      reconciled ? 'text-green-700 bg-green-50' : mismatched ? 'text-amber-700 bg-amber-50' : 'text-slate-700',
+                    ].join(' ')}
+                  >
+                    {formatHours(total)}
+                  </td>
+                )
+              })}
               <td className="px-2 py-2 text-center text-xs font-bold text-slate-900">
                 {formatHours(weekTotal)}
               </td>
