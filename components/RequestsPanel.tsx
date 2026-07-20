@@ -204,6 +204,20 @@ export default function RequestsPanel() {
     setSelectedYear(d.getFullYear())
   }
 
+  function stepMonth(delta: number) {
+    let month = selectedMonth + delta
+    let year = selectedYear
+    if (month < 0) {
+      month = 11
+      year -= 1
+    } else if (month > 11) {
+      month = 0
+      year += 1
+    }
+    setSelectedMonth(month)
+    setSelectedYear(year)
+  }
+
   if (loading) {
     return <p className="text-sm text-slate-400">Loading requests…</p>
   }
@@ -228,6 +242,12 @@ export default function RequestsPanel() {
       {/* Right: calendar */}
       <div>
         <div className="mb-3 flex items-center gap-2">
+          <button
+            onClick={() => stepMonth(-1)}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            ← Prev
+          </button>
           <select
             value={selectedMonth}
             onChange={e => setSelectedMonth(Number(e.target.value))}
@@ -250,6 +270,12 @@ export default function RequestsPanel() {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => stepMonth(1)}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Next →
+          </button>
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">

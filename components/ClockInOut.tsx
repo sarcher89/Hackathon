@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { clockIn, clockOut } from '@/app/actions/clock'
 import TimeSheet, { ClockSessionRow } from '@/components/TimeSheet'
 import TimeOffModal from '@/components/TimeOffModal'
+import MyTimeOffSummary from '@/components/MyTimeOffSummary'
 
 interface ClockSession {
   id: string
@@ -135,6 +136,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
   const [clockedOutAt, setClockedOutAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showTimeOff, setShowTimeOff] = useState(false)
+  const [timeOffRefreshKey, setTimeOffRefreshKey] = useState(0)
 
   useEffect(() => {
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -305,6 +307,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
             ))}
           </div>
         )}
+        {balances && <MyTimeOffSummary key={timeOffRefreshKey} />}
         <div className="flex gap-3 mt-3">
           <button
             onClick={() => setShowTimeOff(true)}
@@ -323,6 +326,7 @@ export default function ClockInOut({ initialSession, weekStart, clockSessionRows
         <TimeOffModal
           balances={balances}
           onClose={() => setShowTimeOff(false)}
+          onSubmitted={() => setTimeOffRefreshKey(k => k + 1)}
         />
       )}
     </div>

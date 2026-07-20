@@ -13,6 +13,7 @@ interface Balances {
 interface Props {
   balances: Balances
   onClose: () => void
+  onSubmitted?: () => void
 }
 
 const TYPE_LABELS: Record<TimeOffType, string> = {
@@ -37,7 +38,7 @@ function today(): string {
   return `${y}-${m}-${day}`
 }
 
-export default function TimeOffModal({ balances, onClose }: Props) {
+export default function TimeOffModal({ balances, onClose, onSubmitted }: Props) {
   const [entries, setEntries] = useState<TimeOffEntry[]>([
     { date: today(), hours: 8, type: 'vacation' },
   ])
@@ -70,6 +71,7 @@ export default function TimeOffModal({ balances, onClose }: Props) {
     }
     setSubmitted(true)
     setLoading(false)
+    onSubmitted?.()
   }
 
   return (

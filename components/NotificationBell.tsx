@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import {
-  getMyNotifications,
-  markAllNotificationsRead,
-} from '@/app/actions/notifications'
+import { useRouter } from 'next/navigation'
+import { getMyNotifications, markNotificationRead } from '@/app/actions/notifications'
 import { Notification } from '@/types/database'
+
+const NOTIFICATION_LINK: Record<string, string> = {
+  time_off_request: '/leader?tab=requests',
+}
 
 function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -19,6 +21,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 export default function NotificationBell() {
+  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -39,19 +42,23 @@ export default function NotificationBell() {
 
   const unreadCount = notifications.filter(n => !n.read).length
 
-  async function handleToggle() {
-    const next = !open
-    setOpen(next)
-    if (next && unreadCount > 0) {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      await markAllNotificationsRead()
+  async function handleNotificationClick(n: Notification) {
+    if (!n.read) {
+      setNotifications(prev => prev.map(x => (x.id === n.id ? { ...x, read: true } : x)))
+      await markNotificationRead(n.id)
+    }
+
+    const link = NOTIFICATION_LINK[n.type]
+    if (link) {
+      setOpen(false)
+      router.push(link)
     }
   }
 
   return (
     <div ref={containerRef} className="relative">
       <button
-        onClick={handleToggle}
+        onClick={() => setOpen(prev => !prev)}
         className="rounded-full p-1.5 hover:bg-slate-200 transition-colors relative"
         aria-label="Notifications"
         style={{ color: '#0B1460' }}
@@ -76,15 +83,25 @@ export default function NotificationBell() {
             {notifications.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-slate-400">No notifications yet.</p>
             ) : (
-              notifications.map(n => (
-                <div
-                  key={n.id}
-                  className={`border-b border-slate-50 px-4 py-3 last:border-b-0 ${n.read ? '' : 'bg-blue-50/60'}`}
-                >
-                  <p className="text-sm text-slate-700">{n.message}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">{formatRelativeTime(n.created_at)}</p>
-                </div>
-              ))
+              notifications.map(n => {
+                const clickable = Boolean(NOTIFICATION_LINK[n.type]) || !n.read
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    disabled={!clickable}
+                    className={[
+                      'block w-full border-b border-slate-50 px-4 py-3 text-left last:border-b-0 transition-colors',
+                      n.read ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/60 hover:bg-blue-50',
+                    ].join(' ')}
+                  >
+                    <p className={`text-sm ${n.read ? 'text-slate-400' : 'text-slate-700'}`}>{n.message}</p>
+                    <p className={`mt-0.5 text-xs ${n.read ? 'text-slate-300' : 'text-slate-400'}`}>
+                      {formatRelativeTime(n.created_at)}
+                    </p>
+                  </button>
+                )
+              })
             )}
           </div>
         </div>

@@ -104,6 +104,12 @@ export async function getAllTimeOffRequests(): Promise<TimeOffRequestWithUser[]>
   }))
 }
 
+const BALANCE_COLUMN: Record<TimeOffType, 'vacation_hours' | 'sick_hours' | 'bereavement_hours'> = {
+  vacation: 'vacation_hours',
+  sick: 'sick_hours',
+  bereavement: 'bereavement_hours',
+}
+
 export async function updateTimeOffRequestStatus(
   requestId: string,
   status: 'approved' | 'denied'
@@ -114,7 +120,17 @@ export async function updateTimeOffRequestStatus(
     return { success: false, error: 'Not authorized' }
   }
 
-  const { data, error } = await createSupabaseServiceClient()
+  const service = createSupabaseServiceClient()
+
+  const { data: request, error: fetchError } = await service
+    .from('time_off_requests')
+    .select('user_id, hours, type, status, request_date')
+    .eq('id', requestId)
+    .maybeSingle()
+
+  if (fetchError || !request) return { success: false, error: 'Request not found' }
+
+  const { data, error } = await service
     .from('time_off_requests')
     .update({ status })
     .eq('id', requestId)
@@ -122,5 +138,74 @@ export async function updateTimeOffRequestStatus(
 
   if (error) return { success: false, error: error.message }
   if (!data || data.length === 0) return { success: false, error: 'Request not found' }
+
+  // Deduct the approved hours from the employee's balance for that time off
+  // type, but only on the pending -> approved transition (avoid double-
+  // deducting if a request is somehow re-approved).
+  if (status === 'approved' && request.status !== 'approved') {
+    const column = BALANCE_COLUMN[request.type as TimeOffType]
+    const { data: user, error: userError } = await service
+      .from('users')
+      .select(column)
+      .eq('id', request.user_id)
+      .maybeSingle()
+
+    if (!userError && user) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const current = (user as any)[column] ?? 0
+      const next = Math.max(0, current - request.hours)
+      await service.from('users').update({ [column]: next }).eq('id', request.user_id)
+    }
+  }
+
+  // Notify the employee of the decision, but only on an actual status change.
+  if (request.status !== status) {
+    const dateLabel = new Date(request.request_date + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    const { error: notifError } = await service.from('notifications').insert({
+      user_id: request.user_id,
+      from_user_id: caller.id,
+      type: status === 'approved' ? 'time_off_approved' : 'time_off_denied',
+      message: `Your ${request.type} request for ${dateLabel} was ${status}`,
+      data: { requestId, date: request.request_date, hours: request.hours, type: request.type },
+    })
+    if (notifError) console.error('Failed to insert time off decision notification:', notifError.message)
+  }
+
   return { success: true }
+}
+
+export interface MyTimeOffRequest {
+  id: string
+  date: string
+  hours: number
+  type: TimeOffType
+  status: TimeOffStatus
+  notes: string | null
+}
+
+export async function getMyTimeOffRequests(): Promise<MyTimeOffRequest[]> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('time_off_requests')
+    .select('id, request_date, hours, type, status, notes')
+    .eq('user_id', user.id)
+    .order('request_date', { ascending: false })
+
+  if (error) return []
+
+  return (data ?? []).map(r => ({
+    id: r.id,
+    date: r.request_date,
+    hours: r.hours,
+    type: r.type,
+    status: r.status,
+    notes: r.notes,
+  }))
 }
