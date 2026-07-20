@@ -238,9 +238,10 @@ export default function TimeGrid({
               )
               const clientTasks = getTasksForClient(tasks, clients, row.clientId)
               const projects = row.clientId ? (projectsByClient[row.clientId] ?? []) : []
+              const isTimeOff = clients.find(c => c.id === row.clientId)?.name === 'Time Off'
 
               return (
-                <tr key={row.rowId} className="hover:bg-slate-50/50">
+                <tr key={row.rowId} className={isTimeOff ? 'bg-green-50 hover:bg-green-100/70' : 'hover:bg-slate-50/50'}>
                   {/* Client */}
                   <td className="px-2 py-1.5">
                     <Combobox

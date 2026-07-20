@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/lib/dates'
 import { getMyPayPeriods, type MyPayPeriodOption } from '@/app/actions/clock'
+import { getMyTimeOffRequests, type MyTimeOffRequest } from '@/app/actions/timeoff'
+import { TIME_OFF_TYPE_LABEL } from '@/lib/timeoff'
 
 export interface ClockSessionRow {
   id: string
@@ -59,7 +61,19 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
   const [periodOptions, setPeriodOptions] = useState<MyPayPeriodOption[]>([])
   useEffect(() => {
+    if (compact) return
     getMyPayPeriods().then(setPeriodOptions)
+  }, [compact])
+
+  const [approvedTimeOff, setApprovedTimeOff] = useState<Map<string, MyTimeOffRequest>>(new Map())
+  useEffect(() => {
+    getMyTimeOffRequests().then(data => {
+      const map = new Map<string, MyTimeOffRequest>()
+      for (const r of data) {
+        if (r.status === 'approved') map.set(r.date, r)
+      }
+      setApprovedTimeOff(map)
+    })
   }, [])
 
   const byDate: Record<string, ClockSessionRow[]> = {}
@@ -82,27 +96,35 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     router.push(`${pathname}?week=${next}`)
   }
 
-  const periodTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+  const periodDateSet = new Set(periodDates.map(toISODate))
+  const periodTimeOffHours = Array.from(approvedTimeOff.entries())
+    .filter(([date]) => periodDateSet.has(date))
+    .reduce((sum, [, r]) => sum + r.hours, 0)
+  const periodTotal = sessions.reduce((sum, s) => sum + (s.hours ?? 0), 0) + periodTimeOffHours
 
   const ROW_PY = 'py-2.5'
 
   return (
     <div>
       <div className="sticky top-0 z-10 bg-white mb-4 flex items-center justify-between px-1 py-2 border-b border-slate-100">
-        <select
-          value={toISODate(periodStart)}
-          onChange={e => handlePeriodChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
-        >
-          {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
-            <option value={toISODate(periodStart)}>{formatPeriodRange(periodStart)}</option>
-          )}
-          {periodOptions.map(p => (
-            <option key={p.periodStart} value={p.periodStart}>
-              {p.label}
-            </option>
-          ))}
-        </select>
+        {compact ? (
+          <span className="text-sm font-semibold text-slate-600">{formatPeriodRange(periodStart)}</span>
+        ) : (
+          <select
+            value={toISODate(periodStart)}
+            onChange={e => handlePeriodChange(e.target.value)}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
+          >
+            {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
+              <option value={toISODate(periodStart)}>{formatPeriodRange(periodStart)}</option>
+            )}
+            {periodOptions.map(p => (
+              <option key={p.periodStart} value={p.periodStart}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        )}
 
         <div className="text-center">
           <p className="text-2xl font-bold text-slate-800 leading-none">
@@ -130,6 +152,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
               const iso = toISODate(date)
               const daySessions = byDate[iso] ?? []
               const hasEntries = daySessions.length > 0
+              const timeOff = approvedTimeOff.get(iso)
               const isWeekend = date.getDay() === 0 || date.getDay() === 6
               const isExpanded = expanded.has(iso)
 
@@ -138,16 +161,21 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                 ? [...daySessions].reverse().find(s => s.clockedOutAt != null)?.clockedOutAt ?? null
                 : null
               const anyInProgress = hasEntries && daySessions.some(s => s.clockedOutAt === null)
-              const dayTotal = daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+              const dayTotal = timeOff ? timeOff.hours : daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
 
               const dayLabel = `${DAY_ABBR[date.getDay()]} ${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`
+              const isCompleted = Boolean(timeOff) || (hasEntries && !anyInProgress)
 
               return [
                 <tr
                   key={`hdr-${iso}`}
                   className={[
                     'border-t border-slate-200',
-                    isWeekend ? 'bg-slate-50/60' : 'bg-white hover:bg-slate-50/40',
+                    timeOff || (compact && isCompleted)
+                      ? 'bg-green-50 hover:bg-green-100/70'
+                      : isWeekend
+                      ? 'bg-slate-50/60'
+                      : 'bg-white hover:bg-slate-50/40',
                     hasEntries ? 'cursor-pointer' : '',
                   ].join(' ')}
                   onClick={() => hasEntries && toggleDay(iso)}
@@ -169,28 +197,38 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                     </p>
                   </td>
 
-                  {/* In — always first clock-in time */}
-                  <td className={`px-3 ${ROW_PY}`}>
-                    {firstIn ? (
-                      <TimeCell iso={firstIn} />
-                    ) : (
-                      <span className="text-sm text-slate-300">—</span>
-                    )}
-                  </td>
+                  {timeOff ? (
+                    <td colSpan={2} className={`px-3 ${ROW_PY}`}>
+                      <span className="text-sm font-medium text-green-700">
+                        {TIME_OFF_TYPE_LABEL[timeOff.type]} Time Off
+                      </span>
+                    </td>
+                  ) : (
+                    <>
+                      {/* In — always first clock-in time */}
+                      <td className={`px-3 ${ROW_PY}`}>
+                        {firstIn ? (
+                          <TimeCell iso={firstIn} />
+                        ) : (
+                          <span className="text-sm text-slate-300">—</span>
+                        )}
+                      </td>
 
-                  {/* Out — last clock-out, or "Currently Clocked In" if active */}
-                  <td className={`px-3 ${ROW_PY}`}>
-                    {anyInProgress ? (
-                      <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
-                    ) : lastOut ? (
-                      <TimeCell iso={lastOut} />
-                    ) : (
-                      <span className="text-sm text-slate-300">—</span>
-                    )}
-                  </td>
+                      {/* Out — last clock-out, or "Currently Clocked In" if active */}
+                      <td className={`px-3 ${ROW_PY}`}>
+                        {anyInProgress ? (
+                          <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                        ) : lastOut ? (
+                          <TimeCell iso={lastOut} />
+                        ) : (
+                          <span className="text-sm text-slate-300">—</span>
+                        )}
+                      </td>
+                    </>
+                  )}
 
                   <td className={`px-3 ${ROW_PY} text-right`}>
-                    {hasEntries ? (
+                    {hasEntries || timeOff ? (
                       <span className={`text-sm font-semibold ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>
                         {fmtHrs(dayTotal)} hrs
                       </span>
