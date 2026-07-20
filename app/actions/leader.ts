@@ -222,6 +222,7 @@ export async function getPayPeriodClockSessionsAllUsers(periodStarts: string[]):
       clocked_in_at,
       clocked_out_at,
       hours,
+      notes,
       user:users!inner(id, email)
     `)
     .gte('entry_date', rangeStart)
@@ -241,6 +242,7 @@ export async function getPayPeriodClockSessionsAllUsers(periodStarts: string[]):
       clockedInAt: r.clocked_in_at,
       clockedOutAt: r.clocked_out_at,
       hours: r.hours,
+      notes: r.notes,
     }))
 }
 
@@ -270,6 +272,7 @@ export async function getPayPeriodClockSessions(
       clocked_in_at,
       clocked_out_at,
       hours,
+      notes,
       user:users!inner(id, email)
     `)
     .eq('user_id', userId)
@@ -290,5 +293,6 @@ export async function getPayPeriodClockSessions(
       clockedInAt: r.clocked_in_at,
       clockedOutAt: r.clocked_out_at,
       hours: r.hours,
+      notes: r.notes,
     }))
 }

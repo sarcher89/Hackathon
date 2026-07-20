@@ -150,7 +150,7 @@ function buildEmployeeSheet(
     rowIndex++
 
     if (daySessions.length > 0) {
-      styleHeaderRow(sheet.getRow(rowIndex), ['Clock In', 'Clock Out', null, null, 'Hours', null], {
+      styleHeaderRow(sheet.getRow(rowIndex), ['Clock In', 'Clock Out', null, null, 'Hours', 'Notes'], {
         fill: CLOCK_HEADER_FILL,
         text: CLOCK_ACCENT_TEXT,
         size: 10,
@@ -164,11 +164,12 @@ function buildEmployeeSheet(
         row.getCell(2).value = s.clockedOutAt ? formatTime(s.clockedOutAt) : 'Currently clocked in'
         row.getCell(5).value = s.hours ?? ''
         if (s.hours !== null) row.getCell(5).numFmt = '0.00'
+        row.getCell(6).value = s.notes ?? ''
         for (let i = 1; i <= columnCount; i++) {
           const cell = row.getCell(i)
           cell.border = ALL_BORDERS
-          cell.font = { bold: true, size: 11, color: { argb: CLOCK_TEXT } }
-          cell.alignment = { vertical: 'middle', horizontal: i === 5 ? 'center' : 'left' }
+          cell.font = { bold: i !== 6, size: i === 6 ? 10 : 11, color: { argb: CLOCK_TEXT } }
+          cell.alignment = { vertical: 'middle', horizontal: i === 5 ? 'center' : 'left', wrapText: i === 6 }
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bandOn ? CLOCK_BAND_FILL : 'FFFFFFFF' } }
         }
         rowIndex++

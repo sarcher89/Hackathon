@@ -37,6 +37,7 @@ export interface ExportClockSession {
   clockedInAt: string
   clockedOutAt: string | null
   hours: number | null
+  notes: string | null
 }
 
 interface Props {

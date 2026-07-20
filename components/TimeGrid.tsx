@@ -14,6 +14,7 @@ interface GridRow {
   projectId: string | null
   taskId: string
   hours: Record<string, string>
+  notes: Record<string, string>
 }
 
 interface TimeGridProps {
@@ -32,7 +33,7 @@ function nextRowId() {
 }
 
 function emptyRow(): GridRow {
-  return { rowId: nextRowId(), clientId: '', projectId: null, taskId: '', hours: {} }
+  return { rowId: nextRowId(), clientId: '', projectId: null, taskId: '', hours: {}, notes: {} }
 }
 
 function getTasksForClient(tasks: Task[], clients: Client[], clientId: string): Task[] {
@@ -171,6 +172,45 @@ export default function TimeGrid({
     }
   }
 
+  const [noteCell, setNoteCell] = useState<{ rowId: string; date: string } | null>(null)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+
+  function openNoteEditor(rowId: string, date: string) {
+    const row = rows.find(r => r.rowId === rowId)
+    setNoteDraft(row?.notes[date] ?? '')
+    setNoteCell({ rowId, date })
+  }
+
+  async function saveNote() {
+    if (!noteCell) return
+    const row = rows.find(r => r.rowId === noteCell.rowId)
+    if (!row?.clientId || !row.taskId) return
+
+    const hours = Math.max(0, Math.round((parseFloat(row.hours[noteCell.date] ?? '') || 0) * 4) / 4)
+    setSavingNote(true)
+    const result = await saveTimeEntry({
+      clientId: row.clientId,
+      projectId: row.projectId,
+      taskId: row.taskId,
+      date: noteCell.date,
+      hours,
+      notes: noteDraft,
+    })
+    setSavingNote(false)
+
+    if (result.success) {
+      setRows(prev =>
+        prev.map(r =>
+          r.rowId === noteCell.rowId
+            ? { ...r, notes: { ...r.notes, [noteCell.date]: noteDraft } }
+            : r
+        )
+      )
+      setNoteCell(null)
+    }
+  }
+
   function handlePeriodChange(next: string) {
     router.push(`${pathname}?week=${next}`)
   }
@@ -297,31 +337,51 @@ export default function TimeGrid({
                     const isSaving = saving.has(cellKey)
                     const hasError = errors.has(cellKey)
                     const isReady = Boolean(row.clientId && row.taskId)
+                    const hasHours = (parseFloat(row.hours[date] ?? '') || 0) > 0
+                    const hasNote = Boolean(row.notes[date])
 
                     return (
                       <td key={date} className="px-1 py-1.5">
-                        <input
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.25"
-                          value={row.hours[date] ?? ''}
-                          onChange={e => updateHoursLocal(row.rowId, date, e.target.value)}
-                          onBlur={() => saveCell(row.rowId, date)}
-                          disabled={!isReady}
-                          placeholder="0"
-                          title={hasError ? errors.get(cellKey) : undefined}
-                          className={[
-                            'w-14 rounded border px-1.5 py-1 text-center text-xs transition-colors',
-                            'focus:outline-none focus:ring-1',
-                            'disabled:bg-slate-50 disabled:text-slate-300 disabled:cursor-not-allowed',
-                            hasError
-                              ? 'border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-300'
-                              : isSaving
-                              ? 'border-blue-300 bg-blue-50 focus:border-blue-400 focus:ring-blue-300'
-                              : 'border-slate-200 focus:border-blue-400 focus:ring-blue-300',
-                          ].join(' ')}
-                        />
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="24"
+                            step="0.25"
+                            value={row.hours[date] ?? ''}
+                            onChange={e => updateHoursLocal(row.rowId, date, e.target.value)}
+                            onBlur={() => saveCell(row.rowId, date)}
+                            disabled={!isReady}
+                            placeholder="0"
+                            title={hasError ? errors.get(cellKey) : undefined}
+                            className={[
+                              'w-14 rounded border px-1.5 py-1 text-center text-xs transition-colors',
+                              'focus:outline-none focus:ring-1',
+                              'disabled:bg-slate-50 disabled:text-slate-300 disabled:cursor-not-allowed',
+                              hasError
+                                ? 'border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-300'
+                                : isSaving
+                                ? 'border-blue-300 bg-blue-50 focus:border-blue-400 focus:ring-blue-300'
+                                : 'border-slate-200 focus:border-blue-400 focus:ring-blue-300',
+                            ].join(' ')}
+                          />
+                          {hasHours && (
+                            <button
+                              onClick={() => openNoteEditor(row.rowId, date)}
+                              title={row.notes[date] || 'Add note'}
+                              className={[
+                                'absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors',
+                                hasNote
+                                  ? 'bg-blue-500 border-blue-500 text-white'
+                                  : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400 hover:text-blue-400',
+                              ].join(' ')}
+                            >
+                              <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )
                   })}
@@ -401,6 +461,47 @@ export default function TimeGrid({
         <p className="mt-3 text-xs text-red-600">
           Some cells failed to save. Hover the red cells for details.
         </p>
+      )}
+
+      {noteCell && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200" style={{ backgroundColor: '#0B1460' }}>
+              <h2 className="text-base font-bold text-white">Add Note</h2>
+              <button onClick={() => setNoteCell(null)} className="text-white/70 hover:text-white transition-colors text-xl leading-none">
+                ×
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <textarea
+                autoFocus
+                rows={4}
+                value={noteDraft}
+                onChange={e => setNoteDraft(e.target.value)}
+                placeholder="What should we know about this entry?"
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
+              />
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setNoteCell(null)}
+                  className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveNote}
+                  disabled={savingNote}
+                  className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: '#0B1460' }}
+                >
+                  {savingNote ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

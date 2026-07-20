@@ -60,6 +60,24 @@ export async function clockIn(): Promise<{
   return { session: { id: data.id, clockedInAt: data.clocked_in_at } }
 }
 
+export async function saveClockSessionNote(
+  sessionId: string,
+  note: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('clock_sessions')
+    .update({ notes: note.trim() || null })
+    .eq('id', sessionId)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
 export async function clockOut(
   sessionId: string
 ): Promise<{ hours: number | null; entryDate?: string; error?: string }> {
