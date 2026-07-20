@@ -7,9 +7,10 @@ import TimeGrid from '@/components/TimeGrid'
 import PayStub from '@/components/PayStub'
 import LeaderGrid, { ExportEntry } from '@/components/LeaderGrid'
 import WageManager from '@/components/WageManager'
+import RequestsPanel from '@/components/RequestsPanel'
 import { Client, Project, Task, User } from '@/types/database'
 
-type Tab = 'clock' | 'timesheet' | 'projectlog' | 'paystub' | 'payroll' | 'team'
+type Tab = 'clock' | 'timesheet' | 'projectlog' | 'paystub' | 'payroll' | 'team' | 'requests'
 
 const USER_TABS: { key: Tab; label: string }[] = [
   { key: 'clock', label: 'Clock In / Out' },
@@ -21,6 +22,7 @@ const USER_TABS: { key: Tab; label: string }[] = [
 const ADMIN_TABS: { key: Tab; label: string }[] = [
   { key: 'payroll', label: 'Payroll Export' },
   { key: 'team', label: 'Employee Information' },
+  { key: 'requests', label: 'Requests' },
 ]
 
 interface ClockSession {
@@ -160,6 +162,9 @@ export default function LeaderTabs({
       )}
       {tab === 'team' && (
         <WageManager users={users} />
+      )}
+      {tab === 'requests' && (
+        <RequestsPanel />
       )}
     </div>
   )
