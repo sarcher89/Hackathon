@@ -162,18 +162,20 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                 ? [...daySessions].reverse().find(s => s.clockedOutAt != null)?.clockedOutAt ?? null
                 : null
               const anyInProgress = hasEntries && daySessions.some(s => s.clockedOutAt === null)
-              const dayTotal = timeOff ? timeOff.hours : daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+              const workedHours = daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
+              const dayTotal = (timeOff?.hours ?? 0) + workedHours
 
               const dayLabel = `${DAY_ABBR[date.getDay()]} ${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`
               const isCompleted = Boolean(timeOff) || (hasEntries && !anyInProgress)
               const isToday = iso === todayIso
+              const isTodayActive = isToday && anyInProgress
 
               return [
                 <tr
                   key={`hdr-${iso}`}
                   className={[
                     'border-t border-slate-200',
-                    isToday
+                    isTodayActive
                       ? 'today-stripes'
                       : timeOff || isCompleted
                       ? 'bg-green-50 hover:bg-green-100/70'
@@ -199,37 +201,32 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
                     <p className={`font-semibold text-sm ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
                       {dayLabel}
                     </p>
+                    {timeOff && (
+                      <p className="text-xs font-medium text-green-700 mt-0.5">
+                        {TIME_OFF_TYPE_LABEL[timeOff.type]} Time Off ({fmtHrs(timeOff.hours)}h)
+                      </p>
+                    )}
                   </td>
 
-                  {timeOff ? (
-                    <td colSpan={2} className={`px-3 ${ROW_PY}`}>
-                      <span className="text-sm font-medium text-green-700">
-                        {TIME_OFF_TYPE_LABEL[timeOff.type]} Time Off
-                      </span>
-                    </td>
-                  ) : (
-                    <>
-                      {/* In — always first clock-in time */}
-                      <td className={`px-3 ${ROW_PY}`}>
-                        {firstIn ? (
-                          <TimeCell iso={firstIn} />
-                        ) : (
-                          <span className="text-sm text-slate-300">—</span>
-                        )}
-                      </td>
+                  {/* In — always first clock-in time, on top of any time off */}
+                  <td className={`px-3 ${ROW_PY}`}>
+                    {firstIn ? (
+                      <TimeCell iso={firstIn} />
+                    ) : (
+                      <span className="text-sm text-slate-300">—</span>
+                    )}
+                  </td>
 
-                      {/* Out — last clock-out, or "Currently Clocked In" if active */}
-                      <td className={`px-3 ${ROW_PY}`}>
-                        {anyInProgress ? (
-                          <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
-                        ) : lastOut ? (
-                          <TimeCell iso={lastOut} />
-                        ) : (
-                          <span className="text-sm text-slate-300">—</span>
-                        )}
-                      </td>
-                    </>
-                  )}
+                  {/* Out — last clock-out, or "Currently Clocked In" if active */}
+                  <td className={`px-3 ${ROW_PY}`}>
+                    {anyInProgress ? (
+                      <span className="text-xs font-medium text-green-600">Currently Clocked In</span>
+                    ) : lastOut ? (
+                      <TimeCell iso={lastOut} />
+                    ) : (
+                      <span className="text-sm text-slate-300">—</span>
+                    )}
+                  </td>
 
                   <td className={`px-3 ${ROW_PY} text-right`}>
                     {hasEntries || timeOff ? (

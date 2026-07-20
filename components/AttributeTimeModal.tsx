@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { saveTimeEntry } from '@/app/actions/time-entries'
 import { createTask } from '@/app/actions/tasks'
-import { Client, Project, Task } from '@/types/database'
+import { Client, Project, Task, TaskSystem } from '@/types/database'
 import Combobox from '@/components/Combobox'
+
+const TASK_SYSTEMS: TaskSystem[] = ['denticon', 'cloud9', 'both']
 
 interface AllocationRow {
   id: string
@@ -58,7 +60,7 @@ export default function AttributeTimeModal({
   onSaved,
 }: Props) {
   const [rows, setRows] = useState<AllocationRow[]>([
-    { id: nextRowId(), clientId: '', projectId: null, taskId: '', hours: String(totalHours) },
+    { id: nextRowId(), clientId: '', projectId: null, taskId: '', hours: '' },
   ])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,15 +68,24 @@ export default function AttributeTimeModal({
   const [extraTasks, setExtraTasks] = useState<Task[]>([])
   const [addingTaskForRow, setAddingTaskForRow] = useState<string | null>(null)
   const [newTaskName, setNewTaskName] = useState('')
+  const [newTaskCategory, setNewTaskCategory] = useState('')
+  const [newTaskSystem, setNewTaskSystem] = useState<TaskSystem>('both')
   const [addingTask, setAddingTask] = useState(false)
 
   const allTasks = [...tasks, ...extraTasks]
+
+  function resetNewTaskForm() {
+    setAddingTaskForRow(null)
+    setNewTaskName('')
+    setNewTaskCategory('')
+    setNewTaskSystem('both')
+  }
 
   async function handleAddTask(rowId: string) {
     const name = newTaskName.trim()
     if (!name) return
     setAddingTask(true)
-    const result = await createTask(name)
+    const result = await createTask(name, { category: newTaskCategory, system: newTaskSystem })
     setAddingTask(false)
     if (!result.success) {
       setError(result.error)
@@ -82,8 +93,7 @@ export default function AttributeTimeModal({
     }
     setExtraTasks(prev => [...prev, result.task])
     updateRow(rowId, { taskId: result.task.id })
-    setAddingTaskForRow(null)
-    setNewTaskName('')
+    resetNewTaskForm()
   }
 
   const allocated = rows.reduce((sum, r) => sum + (parseFloat(r.hours) || 0), 0)
@@ -101,7 +111,7 @@ export default function AttributeTimeModal({
   function addRow() {
     setRows(prev => [
       ...prev,
-      { id: nextRowId(), clientId: '', projectId: null, taskId: '', hours: remaining > 0 ? String(remaining) : '0' },
+      { id: nextRowId(), clientId: '', projectId: null, taskId: '', hours: '' },
     ])
   }
 
@@ -209,10 +219,25 @@ export default function AttributeTimeModal({
                         autoFocus
                         value={newTaskName}
                         onChange={e => setNewTaskName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAddTask(row.id)}
-                        placeholder="New task name"
+                        placeholder="Task name"
                         className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
                       />
+                      <input
+                        type="text"
+                        value={newTaskCategory}
+                        onChange={e => setNewTaskCategory(e.target.value)}
+                        placeholder="Category"
+                        className="w-28 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
+                      />
+                      <select
+                        value={newTaskSystem}
+                        onChange={e => setNewTaskSystem(e.target.value as TaskSystem)}
+                        className="rounded border border-slate-300 px-2 py-1 text-xs capitalize text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
+                      >
+                        {TASK_SYSTEMS.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
                       <button
                         onClick={() => handleAddTask(row.id)}
                         disabled={addingTask || !newTaskName.trim()}
@@ -222,7 +247,7 @@ export default function AttributeTimeModal({
                         {addingTask ? 'Adding…' : 'Add'}
                       </button>
                       <button
-                        onClick={() => { setAddingTaskForRow(null); setNewTaskName('') }}
+                        onClick={resetNewTaskForm}
                         className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
                       >
                         Cancel
@@ -230,7 +255,7 @@ export default function AttributeTimeModal({
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setAddingTaskForRow(row.id); setNewTaskName('') }}
+                      onClick={() => setAddingTaskForRow(row.id)}
                       disabled={!row.clientId}
                       className="mt-1 pl-1 text-xs font-medium hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
                       style={{ color: row.clientId ? '#0B1460' : undefined }}
