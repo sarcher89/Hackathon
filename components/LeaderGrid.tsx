@@ -2,11 +2,17 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { markEntriesExported } from '@/app/actions/leader'
-import { formatDayHeader, formatWeekRange, offsetWeek, toISODate } from '@/lib/dates'
+import {
+  markEntriesExported,
+  getEmployeePayPeriods,
+  getPayPeriodEntries,
+  type PayPeriodSummary,
+} from '@/app/actions/leader'
+import { formatDayHeader, formatPeriodRange, offsetPeriod, toISODate } from '@/lib/dates'
 
 export interface ExportEntry {
   id: string
+  userId: string
   userName: string
   userEmail: string
   date: string
@@ -19,10 +25,17 @@ export interface ExportEntry {
   exported: boolean
 }
 
+export interface EmployeeOption {
+  id: string
+  name: string
+  email: string
+}
+
 interface Props {
   weekStart: string
-  dates: string[]
+  periodDates: string[]
   entries: ExportEntry[]
+  employees: EmployeeOption[]
 }
 
 function escapeCell(value: string): string {
@@ -62,15 +75,25 @@ function formatHours(n: number): string {
   return n % 1 === 0 ? String(n) : n.toFixed(1)
 }
 
-export default function LeaderGrid({ weekStart, dates, entries }: Props) {
+function slugify(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'employee'
+}
+
+export default function LeaderGrid({ weekStart, periodDates, entries, employees }: Props) {
   const router = useRouter()
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
     new Set(entries.filter(e => e.exported).map(e => e.id))
   )
 
-  const monday = new Date(weekStart + 'T00:00:00')
-  const dayHeaders = dates.map(d => ({
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
+  const [periods, setPeriods] = useState<PayPeriodSummary[]>([])
+  const [loadingPeriods, setLoadingPeriods] = useState(false)
+  const [selectedPeriods, setSelectedPeriods] = useState<Set<string>>(new Set())
+  const [downloading, setDownloading] = useState(false)
+
+  const periodStart = new Date(weekStart + 'T00:00:00')
+  const dayHeaders = periodDates.map(d => ({
     isoDate: d,
     ...formatDayHeader(new Date(d + 'T00:00:00')),
   }))
@@ -87,16 +110,16 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
   const users = Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
   // Day totals across all users
-  const dayTotals = dates.map(d =>
+  const dayTotals = periodDates.map(d =>
     entries.reduce((sum, e) => (e.date === d ? sum + e.hours : sum), 0)
   )
-  const weekTotal = dayTotals.reduce((a, b) => a + b, 0)
+  const periodTotal = dayTotals.reduce((a, b) => a + b, 0)
 
   const newEntries = entries.filter(e => !exportedIds.has(e.id))
   const hasNew = newEntries.length > 0
 
-  function navigateWeek(offset: number) {
-    const next = toISODate(offsetWeek(monday, offset))
+  function navigatePeriod(offset: number) {
+    const next = toISODate(offsetPeriod(periodStart, offset))
     router.push(`/leader?week=${next}`)
   }
 
@@ -115,21 +138,65 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
     setExporting(false)
   }
 
+  async function handleSelectEmployee(employeeId: string) {
+    setSelectedEmployeeId(employeeId)
+    setPeriods([])
+    setSelectedPeriods(new Set())
+    if (!employeeId) return
+
+    setLoadingPeriods(true)
+    const result = await getEmployeePayPeriods(employeeId)
+    setPeriods(result)
+    setLoadingPeriods(false)
+  }
+
+  function togglePeriod(periodStart: string) {
+    setSelectedPeriods(prev => {
+      const next = new Set(prev)
+      if (next.has(periodStart)) next.delete(periodStart)
+      else next.add(periodStart)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelectedPeriods(prev =>
+      prev.size === periods.length ? new Set() : new Set(periods.map(p => p.periodStart))
+    )
+  }
+
+  async function handleDownloadSelected() {
+    if (!selectedEmployeeId || selectedPeriods.size === 0) return
+    setDownloading(true)
+
+    const selectedEntries = await getPayPeriodEntries(selectedEmployeeId, Array.from(selectedPeriods))
+    const employee = employees.find(e => e.id === selectedEmployeeId)
+    const csv = generateCSV(selectedEntries)
+    downloadCSV(csv, `payroll-${slugify(employee?.name ?? employee?.email ?? 'employee')}.csv`)
+
+    const ids = selectedEntries.map(e => e.id)
+    await markEntriesExported(ids)
+
+    setDownloading(false)
+  }
+
+  const allPeriodsSelected = periods.length > 0 && selectedPeriods.size === periods.length
+
   return (
     <div>
-      {/* Week navigation */}
+      {/* Period navigation */}
       <div className="mb-4 flex items-center justify-between">
         <button
-          onClick={() => navigateWeek(-1)}
+          onClick={() => navigatePeriod(-1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
         >
           ← Prev
         </button>
         <span className="text-sm font-semibold text-slate-700">
-          {formatWeekRange(monday)}
+          {formatPeriodRange(periodStart)}
         </span>
         <button
-          onClick={() => navigateWeek(1)}
+          onClick={() => navigatePeriod(1)}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
         >
           Next →
@@ -155,7 +222,7 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
           </button>
         )}
         {entries.length === 0 && (
-          <p className="text-sm text-slate-400">No entries logged this week.</p>
+          <p className="text-sm text-slate-400">No entries logged this pay period.</p>
         )}
       </div>
 
@@ -171,7 +238,7 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
                 {dayHeaders.map(h => (
                   <th
                     key={h.isoDate}
-                    className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-16"
+                    className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14"
                   >
                     <div>{h.day}</div>
                     <div className="text-slate-400 normal-case font-normal">{h.shortDate}</div>
@@ -184,14 +251,14 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map(u => {
-                const rowTotal = dates.reduce((sum, d) => sum + (u.hours[d] ?? 0), 0)
+                const rowTotal = periodDates.reduce((sum, d) => sum + (u.hours[d] ?? 0), 0)
                 return (
                   <tr key={u.email} className="hover:bg-slate-50/50">
                     <td className="px-3 py-2">
                       <div className="text-xs font-medium text-slate-800">{u.name}</div>
                       <div className="text-xs text-slate-400">{u.email}</div>
                     </td>
-                    {dates.map(d => (
+                    {periodDates.map(d => (
                       <td key={d} className="px-2 py-2 text-center text-xs text-slate-600">
                         {formatHours(u.hours[d] ?? 0)}
                       </td>
@@ -209,12 +276,12 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
                   Team Total
                 </td>
                 {dayTotals.map((total, i) => (
-                  <td key={dates[i]} className="px-2 py-2 text-center text-xs font-bold text-slate-700">
+                  <td key={periodDates[i]} className="px-2 py-2 text-center text-xs font-bold text-slate-700">
                     {formatHours(total)}
                   </td>
                 ))}
                 <td className="px-2 py-2 text-center text-xs font-bold text-slate-900">
-                  {formatHours(weekTotal)}
+                  {formatHours(periodTotal)}
                 </td>
               </tr>
             </tfoot>
@@ -225,9 +292,84 @@ export default function LeaderGrid({ weekStart, dates, entries }: Props) {
       {/* Export legend */}
       {entries.length > 0 && (
         <p className="mt-3 text-xs text-slate-400">
-          {exportedIds.size} of {entries.length} entries already exported this week.
+          {exportedIds.size} of {entries.length} entries already exported this pay period.
         </p>
       )}
+
+      {/* Export by employee, across all past pay periods */}
+      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-slate-700">Export by Employee</h3>
+
+        <select
+          value={selectedEmployeeId}
+          onChange={e => handleSelectEmployee(e.target.value)}
+          className="w-full max-w-sm rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+        >
+          <option value="">— select an employee —</option>
+          {employees.map(emp => (
+            <option key={emp.id} value={emp.id}>
+              {emp.name} ({emp.email})
+            </option>
+          ))}
+        </select>
+
+        {selectedEmployeeId && (
+          <div className="mt-4">
+            {loadingPeriods ? (
+              <p className="text-sm text-slate-400">Loading pay periods…</p>
+            ) : periods.length === 0 ? (
+              <p className="text-sm text-slate-400">No pay periods found for this employee.</p>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={allPeriodsSelected}
+                      onChange={toggleSelectAll}
+                      className="rounded border-slate-300"
+                    />
+                    Select all ({periods.length} pay periods)
+                  </label>
+                  <button
+                    onClick={handleDownloadSelected}
+                    disabled={downloading || selectedPeriods.size === 0}
+                    className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {downloading ? 'Downloading…' : `Download selected (${selectedPeriods.size})`}
+                  </button>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto rounded border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <tbody className="divide-y divide-slate-100">
+                      {periods.map(p => (
+                        <tr key={p.periodStart} className="hover:bg-slate-50/50">
+                          <td className="px-3 py-2 w-8">
+                            <input
+                              type="checkbox"
+                              checked={selectedPeriods.has(p.periodStart)}
+                              onChange={() => togglePeriod(p.periodStart)}
+                              className="rounded border-slate-300"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-sm text-slate-700">{p.label}</td>
+                          <td className="px-3 py-2 text-right text-sm text-slate-500">
+                            {formatHours(p.hours)} hrs
+                          </td>
+                          <td className="px-3 py-2 text-right text-xs text-slate-400">
+                            {p.entryCount} {p.entryCount === 1 ? 'entry' : 'entries'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

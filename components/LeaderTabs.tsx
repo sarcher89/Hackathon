@@ -39,6 +39,7 @@ interface GridRow {
 interface Props {
   weekStart: string
   dates: string[]
+  periodDates: string[]
   entries: ExportEntry[]
   users: User[]
   clockSession: ClockSession | null
@@ -56,6 +57,7 @@ interface Props {
 export default function LeaderTabs({
   weekStart,
   dates,
+  periodDates,
   entries,
   users,
   clockSession,
@@ -152,8 +154,9 @@ export default function LeaderTabs({
         <LeaderGrid
           key={weekStart}
           weekStart={weekStart}
-          dates={dates}
+          periodDates={periodDates}
           entries={entries}
+          employees={users.map(u => ({ id: u.id, name: u.full_name || u.email, email: u.email }))}
         />
       )}
       {tab === 'team' && (
