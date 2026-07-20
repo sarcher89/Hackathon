@@ -43,7 +43,6 @@ interface GridRow {
 
 interface Props {
   weekStart: string
-  dates: string[]
   periodDates: string[]
   entries: ExportEntry[]
   users: User[]
@@ -61,7 +60,6 @@ interface Props {
 
 export default function LeaderTabs({
   weekStart,
-  dates,
   periodDates,
   entries,
   users,
@@ -152,7 +150,7 @@ export default function LeaderTabs({
         <TimeGrid
           key={weekStart}
           weekStart={weekStart}
-          dates={dates}
+          periodDates={periodDates}
           clients={clients}
           projectsByClient={projectsByClient}
           tasks={tasks}

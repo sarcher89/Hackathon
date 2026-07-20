@@ -31,7 +31,7 @@ interface GridRow {
 interface Props {
   clockSession: ClockSession | null
   weekStart: string
-  dates: string[]
+  periodDates: string[]
   clients: Client[]
   projectsByClient: Record<string, Project[]>
   tasks: Task[]
@@ -53,7 +53,7 @@ const TABS: { key: Tab; label: string }[] = [
 export default function DashboardTabs({
   clockSession,
   weekStart,
-  dates,
+  periodDates,
   clients,
   projectsByClient,
   tasks,
@@ -110,7 +110,7 @@ export default function DashboardTabs({
         <TimeGrid
           key={weekStart}
           weekStart={weekStart}
-          dates={dates}
+          periodDates={periodDates}
           clients={clients}
           projectsByClient={projectsByClient}
           tasks={tasks}

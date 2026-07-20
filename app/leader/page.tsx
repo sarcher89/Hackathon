@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { getMondayOfWeek, getWeekDates, getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
+import { getPeriodStart, getPeriodDates, toISODate } from '@/lib/dates'
 import { ExportEntry } from '@/components/LeaderGrid'
 import LeaderTabs from '@/components/LeaderTabs'
 import { Client, Project, Task, TimeEntry, User } from '@/types/database'
@@ -29,10 +29,6 @@ export default async function LeaderPage({
 
   const periodDates = getPeriodDates(periodStart).map(toISODate)
   const weekStart = toISODate(periodStart)
-
-  // Keep 7-day dates for TimeGrid columns (Mon–Sun of the week containing period start)
-  const monday = getMondayOfWeek(periodStart)
-  const dates = getWeekDates(monday).map(toISODate)
 
   // time_entries RLS only allows a user to see their own rows, but this view
   // needs every employee's entries — read with the service-role client now
@@ -66,8 +62,8 @@ export default async function LeaderPage({
       .from('time_entries')
       .select('*')
       .eq('user_id', user.id)
-      .gte('entry_date', dates[0])
-      .lte('entry_date', dates[6]),
+      .gte('entry_date', periodDates[0])
+      .lte('entry_date', periodDates[periodDates.length - 1]),
     supabase
       .from('clock_sessions')
       .select('id, clocked_in_at')
@@ -160,7 +156,6 @@ export default async function LeaderPage({
 
       <LeaderTabs
         weekStart={weekStart}
-        dates={dates}
         periodDates={periodDates}
         entries={entries}
         users={users}

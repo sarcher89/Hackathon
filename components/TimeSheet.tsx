@@ -96,6 +96,7 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
     router.push(`${pathname}?week=${next}`)
   }
 
+  const todayIso = toISODate(new Date())
   const periodDateSet = new Set(periodDates.map(toISODate))
   const periodTimeOffHours = Array.from(approvedTimeOff.entries())
     .filter(([date]) => periodDateSet.has(date))
@@ -165,13 +166,16 @@ export default function TimeSheet({ weekStart, sessions, compact }: Props) {
 
               const dayLabel = `${DAY_ABBR[date.getDay()]} ${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`
               const isCompleted = Boolean(timeOff) || (hasEntries && !anyInProgress)
+              const isToday = iso === todayIso
 
               return [
                 <tr
                   key={`hdr-${iso}`}
                   className={[
                     'border-t border-slate-200',
-                    timeOff || (compact && isCompleted)
+                    isToday
+                      ? 'today-stripes'
+                      : timeOff || isCompleted
                       ? 'bg-green-50 hover:bg-green-100/70'
                       : isWeekend
                       ? 'bg-slate-50/60'

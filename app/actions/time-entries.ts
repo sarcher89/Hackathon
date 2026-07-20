@@ -2,14 +2,14 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { getMondayOfWeek, formatWeekRange, toISODate } from '@/lib/dates'
+import { getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
 
-export interface MyWeekOption {
-  weekStart: string
+export interface MyPeriodOption {
+  periodStart: string
   label: string
 }
 
-export async function getMyProjectLogWeeks(): Promise<MyWeekOption[]> {
+export async function getMyProjectLogPeriods(): Promise<MyPeriodOption[]> {
   const supabase = createSupabaseServerClient()
   const user = await getOrCreateUser(supabase)
   if (!user) return []
@@ -22,17 +22,17 @@ export async function getMyProjectLogWeeks(): Promise<MyWeekOption[]> {
 
   if (error) return []
 
-  const weekStarts = new Set<string>()
-  weekStarts.add(toISODate(getMondayOfWeek(new Date())))
+  const periodStarts = new Set<string>()
+  periodStarts.add(toISODate(getPeriodStart(new Date())))
   for (const row of data ?? []) {
-    weekStarts.add(toISODate(getMondayOfWeek(new Date(row.entry_date + 'T00:00:00'))))
+    periodStarts.add(toISODate(getPeriodStart(new Date(row.entry_date + 'T00:00:00'))))
   }
 
-  return Array.from(weekStarts)
+  return Array.from(periodStarts)
     .sort((a, b) => b.localeCompare(a))
-    .map(weekStart => ({
-      weekStart,
-      label: formatWeekRange(new Date(weekStart + 'T00:00:00')),
+    .map(periodStart => ({
+      periodStart,
+      label: formatPeriodRange(new Date(periodStart + 'T00:00:00')),
     }))
 }
 

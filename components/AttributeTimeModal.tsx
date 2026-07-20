@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { saveTimeEntry } from '@/app/actions/time-entries'
+import { createTask } from '@/app/actions/tasks'
 import { Client, Project, Task } from '@/types/database'
 import Combobox from '@/components/Combobox'
 
@@ -61,6 +62,29 @@ export default function AttributeTimeModal({
   ])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [extraTasks, setExtraTasks] = useState<Task[]>([])
+  const [addingTaskForRow, setAddingTaskForRow] = useState<string | null>(null)
+  const [newTaskName, setNewTaskName] = useState('')
+  const [addingTask, setAddingTask] = useState(false)
+
+  const allTasks = [...tasks, ...extraTasks]
+
+  async function handleAddTask(rowId: string) {
+    const name = newTaskName.trim()
+    if (!name) return
+    setAddingTask(true)
+    const result = await createTask(name)
+    setAddingTask(false)
+    if (!result.success) {
+      setError(result.error)
+      return
+    }
+    setExtraTasks(prev => [...prev, result.task])
+    updateRow(rowId, { taskId: result.task.id })
+    setAddingTaskForRow(null)
+    setNewTaskName('')
+  }
 
   const allocated = rows.reduce((sum, r) => sum + (parseFloat(r.hours) || 0), 0)
   const remaining = Math.round((totalHours - allocated) * 100) / 100
@@ -126,53 +150,92 @@ export default function AttributeTimeModal({
 
           <div className="space-y-3">
             {rows.map(row => {
-              const clientTasks = getTasksForClient(tasks, clients, row.clientId)
+              const clientTasks = getTasksForClient(allTasks, clients, row.clientId)
               const projects = row.clientId ? (projectsByClient[row.clientId] ?? []) : []
               return (
-                <div key={row.id} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <Combobox
-                      value={row.clientId}
-                      onChange={id => updateRow(row.id, { clientId: id, projectId: null, taskId: '' })}
-                      options={clients.map(c => ({ id: c.id, label: c.name }))}
-                      placeholder="— client —"
-                    />
-                  </div>
-                  {projects.length > 0 && (
+                <div key={row.id}>
+                  <div className="flex items-center gap-2">
                     <div className="flex-1">
                       <Combobox
-                        value={row.projectId ?? ''}
-                        onChange={id => updateRow(row.id, { projectId: id || null })}
-                        options={[{ id: '', label: 'None' }, ...projects.map(p => ({ id: p.id, label: p.name }))]}
-                        placeholder="— project —"
+                        value={row.clientId}
+                        onChange={id => updateRow(row.id, { clientId: id, projectId: null, taskId: '' })}
+                        options={clients.map(c => ({ id: c.id, label: c.name }))}
+                        placeholder="— client —"
+                      />
+                    </div>
+                    {projects.length > 0 && (
+                      <div className="flex-1">
+                        <Combobox
+                          value={row.projectId ?? ''}
+                          onChange={id => updateRow(row.id, { projectId: id || null })}
+                          options={[{ id: '', label: 'None' }, ...projects.map(p => ({ id: p.id, label: p.name }))]}
+                          placeholder="— project —"
+                          disabled={!row.clientId}
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <Combobox
+                        value={row.taskId}
+                        onChange={id => updateRow(row.id, { taskId: id })}
+                        options={clientTasks.map(t => ({ id: t.id, label: t.name, group: t.category }))}
+                        placeholder="— task —"
                         disabled={!row.clientId}
                       />
                     </div>
-                  )}
-                  <div className="flex-1">
-                    <Combobox
-                      value={row.taskId}
-                      onChange={id => updateRow(row.id, { taskId: id })}
-                      options={clientTasks.map(t => ({ id: t.id, label: t.name, group: t.category }))}
-                      placeholder="— task —"
-                      disabled={!row.clientId}
+                    <input
+                      type="number"
+                      min="0"
+                      max={totalHours}
+                      step="0.25"
+                      value={row.hours}
+                      onChange={e => updateRow(row.id, { hours: e.target.value })}
+                      className="w-20 rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
                     />
+                    {rows.length > 1 && (
+                      <button
+                        onClick={() => removeRow(row.id)}
+                        className="text-slate-300 hover:text-red-400 transition-colors text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
-                  <input
-                    type="number"
-                    min="0"
-                    max={totalHours}
-                    step="0.25"
-                    value={row.hours}
-                    onChange={e => updateRow(row.id, { hours: e.target.value })}
-                    className="w-20 rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
-                  />
-                  {rows.length > 1 && (
+
+                  {addingTaskForRow === row.id ? (
+                    <div className="mt-1.5 flex items-center gap-2 pl-1">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newTaskName}
+                        onChange={e => setNewTaskName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAddTask(row.id)}
+                        placeholder="New task name"
+                        className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
+                      />
+                      <button
+                        onClick={() => handleAddTask(row.id)}
+                        disabled={addingTask || !newTaskName.trim()}
+                        className="rounded px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                        style={{ backgroundColor: '#0B1460' }}
+                      >
+                        {addingTask ? 'Adding…' : 'Add'}
+                      </button>
+                      <button
+                        onClick={() => { setAddingTaskForRow(null); setNewTaskName('') }}
+                        className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => removeRow(row.id)}
-                      className="text-slate-300 hover:text-red-400 transition-colors text-lg leading-none"
+                      onClick={() => { setAddingTaskForRow(row.id); setNewTaskName('') }}
+                      disabled={!row.clientId}
+                      className="mt-1 pl-1 text-xs font-medium hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
+                      style={{ color: row.clientId ? '#0B1460' : undefined }}
                     >
-                      ×
+                      + Add task
                     </button>
                   )}
                 </div>
