@@ -172,28 +172,51 @@ export default function TimeGrid({
     }
   }
 
-  const [noteCell, setNoteCell] = useState<{ rowId: string; date: string } | null>(null)
+  const [noteRow, setNoteRow] = useState<{ rowId: string; date: string; locked: boolean } | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
   const [savingNote, setSavingNote] = useState(false)
 
+  function eligibleNoteDates(row: GridRow): string[] {
+    return periodDates.filter(d => (parseFloat(row.hours[d] ?? '') || 0) > 0)
+  }
+
+  // Opened from the per-cell icon — date is already known, no picker needed.
   function openNoteEditor(rowId: string, date: string) {
     const row = rows.find(r => r.rowId === rowId)
     setNoteDraft(row?.notes[date] ?? '')
-    setNoteCell({ rowId, date })
+    setNoteRow({ rowId, date, locked: true })
+  }
+
+  // Opened from the row-level "Notes" column — let the user pick which date.
+  function openRowNotes(rowId: string) {
+    const row = rows.find(r => r.rowId === rowId)
+    if (!row) return
+    const dates = eligibleNoteDates(row)
+    const withExisting = dates.find(d => row.notes[d])
+    const date = withExisting ?? dates[0] ?? ''
+    setNoteDraft(date ? row.notes[date] ?? '' : '')
+    setNoteRow({ rowId, date, locked: false })
+  }
+
+  function changeNoteDate(date: string) {
+    if (!noteRow) return
+    const row = rows.find(r => r.rowId === noteRow.rowId)
+    setNoteDraft(row?.notes[date] ?? '')
+    setNoteRow({ ...noteRow, date })
   }
 
   async function saveNote() {
-    if (!noteCell) return
-    const row = rows.find(r => r.rowId === noteCell.rowId)
+    if (!noteRow) return
+    const row = rows.find(r => r.rowId === noteRow.rowId)
     if (!row?.clientId || !row.taskId) return
 
-    const hours = Math.max(0, Math.round((parseFloat(row.hours[noteCell.date] ?? '') || 0) * 4) / 4)
+    const hours = Math.max(0, Math.round((parseFloat(row.hours[noteRow.date] ?? '') || 0) * 4) / 4)
     setSavingNote(true)
     const result = await saveTimeEntry({
       clientId: row.clientId,
       projectId: row.projectId,
       taskId: row.taskId,
-      date: noteCell.date,
+      date: noteRow.date,
       hours,
       notes: noteDraft,
     })
@@ -202,12 +225,12 @@ export default function TimeGrid({
     if (result.success) {
       setRows(prev =>
         prev.map(r =>
-          r.rowId === noteCell.rowId
-            ? { ...r, notes: { ...r.notes, [noteCell.date]: noteDraft } }
+          r.rowId === noteRow.rowId
+            ? { ...r, notes: { ...r.notes, [noteRow.date]: noteDraft } }
             : r
         )
       )
-      setNoteCell(null)
+      setNoteRow(null)
     }
   }
 
@@ -280,6 +303,9 @@ export default function TimeGrid({
               <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">
                 Total
               </th>
+              <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">
+                Notes
+              </th>
               <th className="w-8" />
             </tr>
           </thead>
@@ -293,6 +319,8 @@ export default function TimeGrid({
               const clientTasks = getTasksForClient(tasks, clients, row.clientId)
               const projects = row.clientId ? (projectsByClient[row.clientId] ?? []) : []
               const isTimeOff = clients.find(c => c.id === row.clientId)?.name === 'Time Off'
+              const rowHasEligibleDate = eligibleNoteDates(row).length > 0
+              const rowHasNote = Object.values(row.notes).some(Boolean)
 
               return (
                 <tr key={row.rowId} className={isTimeOff ? 'bg-green-50 hover:bg-green-100/70' : 'hover:bg-slate-50/50'}>
@@ -391,6 +419,27 @@ export default function TimeGrid({
                     {formatHours(rowTotal)}
                   </td>
 
+                  {/* Notes */}
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      onClick={() => openRowNotes(row.rowId)}
+                      disabled={!rowHasEligibleDate}
+                      title={rowHasEligibleDate ? 'Add or edit a note for this row' : 'Log hours before adding a note'}
+                      className={[
+                        'inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors',
+                        'disabled:cursor-not-allowed disabled:opacity-40',
+                        rowHasNote
+                          ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          : 'border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500',
+                      ].join(' ')}
+                    >
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+                      </svg>
+                      {rowHasNote ? 'Edit' : 'Add'}
+                    </button>
+                  </td>
+
                   {/* Remove row */}
                   <td className="px-1 py-1.5 text-center">
                     <button
@@ -441,6 +490,7 @@ export default function TimeGrid({
                 {formatHours(periodTotal)}
               </td>
               <td />
+              <td />
             </tr>
           </tfoot>
         </table>
@@ -463,46 +513,90 @@ export default function TimeGrid({
         </p>
       )}
 
-      {noteCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200" style={{ backgroundColor: '#0B1460' }}>
-              <h2 className="text-base font-bold text-white">Add Note</h2>
-              <button onClick={() => setNoteCell(null)} className="text-white/70 hover:text-white transition-colors text-xl leading-none">
-                ×
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              <textarea
-                autoFocus
-                rows={4}
-                value={noteDraft}
-                onChange={e => setNoteDraft(e.target.value)}
-                placeholder="What should we know about this entry?"
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
-              />
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setNoteCell(null)}
-                  className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
+      {noteRow && (() => {
+        const row = rows.find(r => r.rowId === noteRow.rowId)
+        const dates = row ? eligibleNoteDates(row) : []
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200" style={{ backgroundColor: '#0B1460' }}>
+                <h2 className="text-base font-bold text-white">Add Note</h2>
+                <button onClick={() => setNoteRow(null)} className="text-white/70 hover:text-white transition-colors text-xl leading-none">
+                  ×
                 </button>
-                <button
-                  onClick={saveNote}
-                  disabled={savingNote}
-                  className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                  style={{ backgroundColor: '#0B1460' }}
-                >
-                  {savingNote ? 'Saving…' : 'Save'}
-                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                {dates.length === 0 ? (
+                  <p className="text-sm text-slate-400">Log hours on this row before adding a note.</p>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                        Date
+                      </label>
+                      {noteRow.locked ? (
+                        <p className="text-sm text-slate-700 font-medium">
+                          {(() => {
+                            const { day, shortDate } = formatDayHeader(new Date(noteRow.date + 'T00:00:00'))
+                            return `${day} ${shortDate}`
+                          })()}
+                        </p>
+                      ) : (
+                        <select
+                          value={noteRow.date}
+                          onChange={e => changeNoteDate(e.target.value)}
+                          className="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
+                        >
+                          {dates.map(d => {
+                            const { day, shortDate } = formatDayHeader(new Date(d + 'T00:00:00'))
+                            return (
+                              <option key={d} value={d}>
+                                {day} {shortDate}
+                              </option>
+                            )
+                          })}
+                        </select>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                        Note
+                      </label>
+                      <textarea
+                        autoFocus
+                        rows={4}
+                        value={noteDraft}
+                        onChange={e => setNoteDraft(e.target.value)}
+                        placeholder="What should we know about this entry?"
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900/30"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setNoteRow(null)}
+                    className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveNote}
+                    disabled={savingNote || dates.length === 0}
+                    className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: '#0B1460' }}
+                  >
+                    {savingNote ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

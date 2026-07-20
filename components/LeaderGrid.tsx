@@ -90,6 +90,54 @@ function buildTaskBreakdown(employeeEntries: ExportEntry[]): TaskBreakdownRow[] 
   return Array.from(map.values()).sort((a, b) => b.hours - a.hours)
 }
 
+interface HoursByDateRow {
+  date: string
+  day: string
+  shortDate: string
+  hours: number
+}
+
+function buildHoursByDate(employeeEntries: ExportEntry[], periodDates: string[]): HoursByDateRow[] {
+  const map = new Map<string, number>()
+  for (const e of employeeEntries) {
+    map.set(e.date, (map.get(e.date) ?? 0) + e.hours)
+  }
+  return periodDates.map(d => ({
+    date: d,
+    ...formatDayHeader(new Date(d + 'T00:00:00')),
+    hours: map.get(d) ?? 0,
+  }))
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        className="flex w-full items-center gap-1.5 text-left text-sm font-semibold text-slate-700"
+      >
+        <svg
+          className={`w-3 h-3 shrink-0 text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
+          viewBox="0 0 16 16" fill="none"
+        >
+          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {title}
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </div>
+  )
+}
+
 export default function LeaderGrid({ weekStart, periodDates, entries, clockSessions }: Props) {
   const [exporting, setExporting] = useState(false)
   const [exportedIds, setExportedIds] = useState<Set<string>>(
@@ -421,56 +469,10 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
                     </tr>
                     {isExpanded && (
                       <tr className="bg-slate-50/70">
-                        <td colSpan={columnCount} className="px-4 py-4">
-                          <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4">
-                            <h4 className="mb-3 text-sm font-semibold text-slate-700">
-                              Time by Task &amp; Client — {formatPeriodRange(periodStart)}
-                            </h4>
-                            {(() => {
-                              const breakdown = buildTaskBreakdown(entries.filter(e => e.userId === u.id))
-                              if (breakdown.length === 0) {
-                                return <p className="text-sm text-slate-400">No entries logged this pay period.</p>
-                              }
-                              return (
-                                <div className="overflow-x-auto rounded border border-slate-200">
-                                  <table className="min-w-full text-sm">
-                                    <thead>
-                                      <tr className="bg-slate-50 border-b border-slate-200">
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Client
-                                        </th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Project
-                                        </th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Task
-                                        </th>
-                                        <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                          Hours
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                      {breakdown.map(row => (
-                                        <tr key={`${row.clientName}|${row.projectName}|${row.taskName}`} className="hover:bg-slate-50/50">
-                                          <td className="px-3 py-2 text-sm text-slate-700">{row.clientName}</td>
-                                          <td className="px-3 py-2 text-sm text-slate-500">{row.projectName ?? '—'}</td>
-                                          <td className="px-3 py-2 text-sm text-slate-700">{row.taskName}</td>
-                                          <td className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
-                                            {formatHours(row.hours)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )
-                            })()}
-                          </div>
-
+                        <td colSpan={columnCount} className="px-4 py-4 space-y-4">
                           <div className="rounded-lg border border-slate-200 bg-white p-4">
                             <h4 className="mb-3 text-sm font-semibold text-slate-700">
-                              Export pay periods for {u.name}
+                              Export by Pay Period
                             </h4>
 
                             {loadingPeriods ? (
@@ -526,6 +528,78 @@ export default function LeaderGrid({ weekStart, periodDates, entries, clockSessi
                               </>
                             )}
                           </div>
+
+                          <CollapsibleSection title={`Time by Task — ${formatPeriodRange(periodStart)}`}>
+                            {(() => {
+                              const breakdown = buildTaskBreakdown(entries.filter(e => e.userId === u.id))
+                              if (breakdown.length === 0) {
+                                return <p className="text-sm text-slate-400">No entries logged this pay period.</p>
+                              }
+                              return (
+                                <div className="overflow-x-auto rounded border border-slate-200">
+                                  <table className="min-w-full text-sm">
+                                    <thead>
+                                      <tr className="bg-slate-50 border-b border-slate-200">
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Client
+                                        </th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Project
+                                        </th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Task
+                                        </th>
+                                        <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                          Hours
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {breakdown.map(row => (
+                                        <tr key={`${row.clientName}|${row.projectName}|${row.taskName}`} className="hover:bg-slate-50/50">
+                                          <td className="px-3 py-2 text-sm text-slate-700">{row.clientName}</td>
+                                          <td className="px-3 py-2 text-sm text-slate-500">{row.projectName ?? '—'}</td>
+                                          <td className="px-3 py-2 text-sm text-slate-700">{row.taskName}</td>
+                                          <td className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
+                                            {formatHours(row.hours)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )
+                            })()}
+                          </CollapsibleSection>
+
+                          <CollapsibleSection title={`Hours Logged — ${formatPeriodRange(periodStart)}`}>
+                            {(() => {
+                              const byDate = buildHoursByDate(entries.filter(e => e.userId === u.id), periodDates)
+                              return (
+                                <div className="overflow-hidden rounded border border-slate-200">
+                                  {byDate.map(row => {
+                                    const isWeekend = new Date(row.date + 'T00:00:00').getDay() % 6 === 0
+                                    return (
+                                      <div
+                                        key={row.date}
+                                        className={[
+                                          'flex items-center justify-between border-t border-slate-200 px-3 py-2.5 first:border-t-0',
+                                          isWeekend ? 'bg-slate-50/60' : 'bg-white',
+                                        ].join(' ')}
+                                      >
+                                        <span className={`text-sm font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-700'}`}>
+                                          {row.day} {row.shortDate}
+                                        </span>
+                                        <span className={`text-sm font-semibold ${row.hours > 0 ? 'text-slate-700' : 'text-slate-300'}`}>
+                                          {formatHours(row.hours)}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
+                          </CollapsibleSection>
                         </td>
                       </tr>
                     )}
