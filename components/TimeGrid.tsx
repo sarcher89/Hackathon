@@ -286,6 +286,9 @@ export default function TimeGrid({
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-[160px]">
                 Task
               </th>
+              <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">
+                Notes
+              </th>
               {dayHeaders.map(h => (
                 <th
                   key={h.isoDate}
@@ -302,9 +305,6 @@ export default function TimeGrid({
               ))}
               <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">
                 Total
-              </th>
-              <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">
-                Notes
               </th>
               <th className="w-8" />
             </tr>
@@ -357,6 +357,27 @@ export default function TimeGrid({
                       placeholder="— task —"
                       disabled={!row.clientId}
                     />
+                  </td>
+
+                  {/* Notes */}
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      onClick={() => openRowNotes(row.rowId)}
+                      disabled={!rowHasEligibleDate}
+                      title={rowHasEligibleDate ? 'Add or edit a note for this row' : 'Log hours before adding a note'}
+                      className={[
+                        'inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors',
+                        'disabled:cursor-not-allowed disabled:opacity-40',
+                        rowHasNote
+                          ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          : 'border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500',
+                      ].join(' ')}
+                    >
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+                      </svg>
+                      {rowHasNote ? 'Edit' : 'Add'}
+                    </button>
                   </td>
 
                   {/* Hour inputs */}
@@ -419,27 +440,6 @@ export default function TimeGrid({
                     {formatHours(rowTotal)}
                   </td>
 
-                  {/* Notes */}
-                  <td className="px-2 py-1.5 text-center">
-                    <button
-                      onClick={() => openRowNotes(row.rowId)}
-                      disabled={!rowHasEligibleDate}
-                      title={rowHasEligibleDate ? 'Add or edit a note for this row' : 'Log hours before adding a note'}
-                      className={[
-                        'inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors',
-                        'disabled:cursor-not-allowed disabled:opacity-40',
-                        rowHasNote
-                          ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                          : 'border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500',
-                      ].join(' ')}
-                    >
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-                      </svg>
-                      {rowHasNote ? 'Edit' : 'Add'}
-                    </button>
-                  </td>
-
                   {/* Remove row */}
                   <td className="px-1 py-1.5 text-center">
                     <button
@@ -463,6 +463,7 @@ export default function TimeGrid({
               >
                 Daily Total
               </td>
+              <td />
               {dayTotals.map((total, i) => {
                 const clocked = clockedByDate[periodDates[i]] ?? 0
                 const reconciled = clocked > 0 && Math.abs(total - clocked) < 0.01
@@ -489,7 +490,6 @@ export default function TimeGrid({
               <td className="px-2 py-2 text-center text-xs font-bold text-slate-900">
                 {formatHours(periodTotal)}
               </td>
-              <td />
               <td />
             </tr>
           </tfoot>

@@ -302,10 +302,10 @@ export default function ClockInOut({
 
       {/* Right: time sheet preview */}
       <div className="flex-1 min-w-0 py-6">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 text-center mb-4">
-          Time Sheet Preview
-        </h3>
         <div className="rounded-2xl border-4 bg-white overflow-hidden" style={{ borderColor: '#0B1460' }}>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 text-center py-3">
+            Time Sheet Preview
+          </h3>
           <div className="overflow-auto max-h-[560px] pb-4">
             {weekStart && clockSessionRows ? (
               <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
