@@ -44,7 +44,6 @@ interface GridRow {
 
 interface Props {
   weekStart: string
-  periodDates: string[]
   entries: ExportEntry[]
   payrollClockSessions: ExportClockSession[]
   users: User[]
@@ -62,7 +61,6 @@ interface Props {
 
 export default function LeaderTabs({
   weekStart,
-  periodDates,
   entries,
   payrollClockSessions,
   users,
@@ -144,16 +142,13 @@ export default function LeaderTabs({
       )}
       {tab === 'timesheet' && (
         <TimeSheet
-          key={weekStart}
           weekStart={weekStart}
           sessions={clockSessionRows}
         />
       )}
       {tab === 'projectlog' && (
         <TimeGrid
-          key={weekStart}
           weekStart={weekStart}
-          periodDates={periodDates}
           clients={clients}
           projectsByClient={projectsByClient}
           tasks={tasks}
@@ -163,7 +158,6 @@ export default function LeaderTabs({
       )}
       {tab === 'paystub' && (
         <PayStub
-          key={weekStart}
           weekStart={weekStart}
           userName={userName}
           userEmail={userEmail}
@@ -173,9 +167,7 @@ export default function LeaderTabs({
       )}
       {tab === 'payroll' && (
         <LeaderGrid
-          key={weekStart}
           weekStart={weekStart}
-          periodDates={periodDates}
           entries={entries}
           clockSessions={payrollClockSessions}
         />

@@ -6,11 +6,7 @@ import { Client, Project, Task, TimeEntry } from '@/types/database'
 import DashboardTabs from '@/components/DashboardTabs'
 import { autoCloseStaleSession } from '@/app/actions/clock'
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: { week?: string }
-}) {
+export default async function DashboardPage() {
   const supabase = createSupabaseServerClient()
 
   const {
@@ -24,12 +20,9 @@ export default async function DashboardPage({
 
   await autoCloseStaleSession(supabase, user.id)
 
-  // Resolve period (1st–15th or 16th–end of month)
-  const weekParam = searchParams.week
-  const periodStart = weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam)
-    ? getPeriodStart(new Date(weekParam + 'T00:00:00'))
-    : getPeriodStart(new Date())
-
+  // Each tab manages its own period selection independently — this initial
+  // fetch always uses the current pay period.
+  const periodStart = getPeriodStart(new Date())
   const periodDates = getPeriodDates(periodStart).map(toISODate)
   const weekStart = toISODate(periodStart)
 
@@ -122,7 +115,6 @@ export default async function DashboardPage({
       <DashboardTabs
         clockSession={clockSession}
         weekStart={weekStart}
-        periodDates={periodDates}
         clients={clients}
         projectsByClient={projectsByClient}
         tasks={tasks}

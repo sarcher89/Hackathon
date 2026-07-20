@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
 import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/lib/dates'
 import { ClockSessionRow } from '@/components/TimeSheet'
-import { getMyPayPeriods, type MyPayPeriodOption } from '@/app/actions/clock'
+import { getMyPayPeriods, getMyClockSessionsForPeriod, type MyPayPeriodOption } from '@/app/actions/clock'
 
 interface Props {
   weekStart: string
@@ -35,9 +34,13 @@ function fmt(n: number): string {
 }
 
 export default function PayStub({ weekStart, userName, userEmail, hourlyWage, sessions }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  // Period selection is local to this component — switching periods here
+  // never touches the URL, so it can't leak into other tabs.
+  const [localWeekStart, setLocalWeekStart] = useState(weekStart)
+  const [localSessions, setLocalSessions] = useState(sessions)
+  const [loadingPeriod, setLoadingPeriod] = useState(false)
+
+  const periodStart = getPeriodStart(new Date(localWeekStart + 'T00:00:00'))
   const periodDates = getPeriodDates(periodStart)
   const periodEnd = periodDates[periodDates.length - 1]
 
@@ -46,15 +49,19 @@ export default function PayStub({ weekStart, userName, userEmail, hourlyWage, se
     getMyPayPeriods().then(setPeriodOptions)
   }, [])
 
-  const completedSessions = sessions.filter(s => s.clockedOutAt !== null)
+  const completedSessions = localSessions.filter(s => s.clockedOutAt !== null)
   const totalHours = completedSessions.reduce((sum, s) => sum + (s.hours ?? 0), 0)
   const grossPay = totalHours * hourlyWage
 
   const periodLabel = formatPeriodRange(periodStart)
   const checkDate = periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
-  function handlePeriodChange(next: string) {
-    router.push(`${pathname}?week=${next}`)
+  async function handlePeriodChange(next: string) {
+    setLoadingPeriod(true)
+    const nextSessions = await getMyClockSessionsForPeriod(next)
+    setLocalWeekStart(next)
+    setLocalSessions(nextSessions)
+    setLoadingPeriod(false)
   }
 
   function handlePrint() {
@@ -68,7 +75,8 @@ export default function PayStub({ weekStart, userName, userEmail, hourlyWage, se
         <select
           value={toISODate(periodStart)}
           onChange={e => handlePeriodChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
+          disabled={loadingPeriod}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300 disabled:opacity-50"
         >
           {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
             <option value={toISODate(periodStart)}>{periodLabel}</option>

@@ -1,10 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
 import { Client, Project, Task } from '@/types/database'
-import { saveTimeEntry, clearRowEntries, getMyProjectLogPeriods, type MyPeriodOption } from '@/app/actions/time-entries'
-import { formatDayHeader, getPeriodStart, formatPeriodRange, toISODate, roundToQuarterHour } from '@/lib/dates'
+import {
+  saveTimeEntry,
+  clearRowEntries,
+  getMyProjectLogPeriods,
+  getMyProjectLogRowsForPeriod,
+  type MyPeriodOption,
+} from '@/app/actions/time-entries'
+import { getMyClockSessionsForPeriod } from '@/app/actions/clock'
+import { formatDayHeader, getPeriodStart, getPeriodDates, formatPeriodRange, toISODate, roundToQuarterHour } from '@/lib/dates'
 import Combobox from '@/components/Combobox'
 import { ClockSessionRow } from '@/components/TimeSheet'
 
@@ -19,7 +25,6 @@ interface GridRow {
 
 interface TimeGridProps {
   weekStart: string
-  periodDates: string[]
   clients: Client[]
   projectsByClient: Record<string, Project[]>
   tasks: Task[]
@@ -55,19 +60,21 @@ function formatHours(n: number): string {
 
 export default function TimeGrid({
   weekStart,
-  periodDates,
   clients,
   projectsByClient,
   tasks,
   initialRows,
   clockSessionRows,
 }: TimeGridProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-
+  // Period selection is local to this component — switching periods here
+  // never touches the URL, so it can't leak into other tabs, and other
+  // tabs' period changes can't leak in here either.
+  const [localWeekStart, setLocalWeekStart] = useState(weekStart)
   const [rows, setRows] = useState<GridRow[]>(
     initialRows.length > 0 ? initialRows : [emptyRow()]
   )
+  const [localClockSessionRows, setLocalClockSessionRows] = useState<ClockSessionRow[]>(clockSessionRows ?? [])
+  const [loadingPeriod, setLoadingPeriod] = useState(false)
   const [saving, setSaving] = useState<Set<string>>(new Set())
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
 
@@ -76,7 +83,8 @@ export default function TimeGrid({
     getMyProjectLogPeriods().then(setPeriodOptions)
   }, [])
 
-  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  const periodStart = getPeriodStart(new Date(localWeekStart + 'T00:00:00'))
+  const periodDates = getPeriodDates(periodStart).map(toISODate)
   const dayHeaders = periodDates.map(d => ({
     isoDate: d,
     ...formatDayHeader(new Date(d + 'T00:00:00')),
@@ -234,8 +242,16 @@ export default function TimeGrid({
     }
   }
 
-  function handlePeriodChange(next: string) {
-    router.push(`${pathname}?week=${next}`)
+  async function handlePeriodChange(next: string) {
+    setLoadingPeriod(true)
+    const [nextRows, nextSessions] = await Promise.all([
+      getMyProjectLogRowsForPeriod(next),
+      getMyClockSessionsForPeriod(next),
+    ])
+    setLocalWeekStart(next)
+    setRows(nextRows.length > 0 ? nextRows : [emptyRow()])
+    setLocalClockSessionRows(nextSessions)
+    setLoadingPeriod(false)
   }
 
   const dayTotals = periodDates.map(date =>
@@ -244,7 +260,7 @@ export default function TimeGrid({
   const periodTotal = dayTotals.reduce((a, b) => a + b, 0)
 
   const clockedByDate: Record<string, number> = {}
-  for (const s of clockSessionRows ?? []) {
+  for (const s of localClockSessionRows) {
     if (s.hours === null) continue
     clockedByDate[s.date] = (clockedByDate[s.date] ?? 0) + roundToQuarterHour(s.hours)
   }
@@ -256,7 +272,8 @@ export default function TimeGrid({
         <select
           value={toISODate(periodStart)}
           onChange={e => handlePeriodChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300"
+          disabled={loadingPeriod}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-300 disabled:opacity-50"
         >
           {!periodOptions.some(p => p.periodStart === toISODate(periodStart)) && (
             <option value={toISODate(periodStart)}>{formatPeriodRange(periodStart)}</option>

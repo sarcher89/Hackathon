@@ -2,7 +2,7 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
+import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/lib/dates'
 
 export interface MyPeriodOption {
   periodStart: string
@@ -34,6 +34,54 @@ export async function getMyProjectLogPeriods(): Promise<MyPeriodOption[]> {
       periodStart,
       label: formatPeriodRange(new Date(periodStart + 'T00:00:00')),
     }))
+}
+
+export interface MyProjectLogRow {
+  rowId: string
+  clientId: string
+  projectId: string | null
+  taskId: string
+  hours: Record<string, string>
+  notes: Record<string, string>
+}
+
+// Fetches this employee's Project Log rows for a specific pay period on
+// demand (client-side, no navigation) so switching periods on one tab never
+// affects any other tab's period.
+export async function getMyProjectLogRowsForPeriod(weekStart: string): Promise<MyProjectLogRow[]> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return []
+
+  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  const periodDates = getPeriodDates(periodStart).map(toISODate)
+
+  const { data, error } = await supabase
+    .from('time_entries')
+    .select('*')
+    .eq('user_id', user.id)
+    .gte('entry_date', periodDates[0])
+    .lte('entry_date', periodDates[periodDates.length - 1])
+
+  if (error || !data) return []
+
+  const rowMap = new Map<string, MyProjectLogRow>()
+  for (const entry of data) {
+    const key = `${entry.client_id}|${entry.project_id ?? ''}|${entry.task_id}`
+    if (!rowMap.has(key)) {
+      rowMap.set(key, {
+        rowId: key,
+        clientId: entry.client_id,
+        projectId: entry.project_id,
+        taskId: entry.task_id,
+        hours: {},
+        notes: {},
+      })
+    }
+    rowMap.get(key)!.hours[entry.entry_date] = String(entry.hours)
+    if (entry.notes) rowMap.get(key)!.notes[entry.entry_date] = entry.notes
+  }
+  return Array.from(rowMap.values())
 }
 
 export async function saveTimeEntry({

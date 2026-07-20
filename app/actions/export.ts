@@ -2,7 +2,6 @@
 
 import ExcelJS from 'exceljs'
 import type { ExportEntry, ExportClockSession } from '@/components/LeaderGrid'
-import { roundToQuarterHour } from '@/lib/dates'
 import { TIME_OFF_CLIENT_NAME } from '@/lib/timeoff'
 
 const NAVY = 'FF0B1460'
@@ -56,9 +55,7 @@ function sumEntries(entries: ExportEntry[]): number {
 }
 
 function sumSessions(sessions: ExportClockSession[]): number {
-  // Round each session to the nearest 15 minutes before summing so the
-  // comparison against task-logged hours doesn't show stray minutes.
-  return Math.round(sessions.reduce((s, sess) => s + roundToQuarterHour(sess.hours ?? 0), 0) * 100) / 100
+  return Math.round(sessions.reduce((s, sess) => s + (sess.hours ?? 0), 0) * 100) / 100
 }
 
 function sumTimeOff(entries: ExportEntry[]): number {
