@@ -13,7 +13,7 @@ import {
   type PayPeriodSummary,
 } from '@/app/actions/leader'
 import { generatePayrollWorkbook } from '@/app/actions/export'
-import { formatDayHeader, formatPeriodRange, roundToQuarterHour } from '@/lib/dates'
+import { formatDayHeader, formatPeriodRange } from '@/lib/dates'
 
 export interface ExportEntry {
   id: string
@@ -134,7 +134,7 @@ function ClockedTimeByDay({
       date: d,
       ...formatDayHeader(new Date(d + 'T00:00:00')),
       sessions: daySessions,
-      hours: daySessions.reduce((sum, s) => sum + roundToQuarterHour(s.hours ?? 0), 0),
+      hours: daySessions.reduce((sum, s) => sum + (s.hours ?? 0), 0),
     }
   })
 

@@ -2,7 +2,8 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase'
 import { getOrCreateUser } from '@/lib/auth'
-import { getPeriodStart, formatPeriodRange, toISODate } from '@/lib/dates'
+import { getPeriodStart, getPeriodDates, formatPeriodRange, toISODate } from '@/lib/dates'
+import type { ClockSessionRow } from '@/components/TimeSheet'
 
 type SupabaseServerClient = ReturnType<typeof createSupabaseServerClient>
 
@@ -66,6 +67,37 @@ export async function getMyPayPeriods(): Promise<MyPayPeriodOption[]> {
       periodStart,
       label: formatPeriodRange(new Date(periodStart + 'T00:00:00')),
     }))
+}
+
+// Used by Time Sheet, Pay Stub, and Project Log to fetch a specific pay
+// period's data on demand (client-side, no navigation) so switching periods
+// on one tab never affects any other tab's period.
+export async function getMyClockSessionsForPeriod(weekStart: string): Promise<ClockSessionRow[]> {
+  const supabase = createSupabaseServerClient()
+  const user = await getOrCreateUser(supabase)
+  if (!user) return []
+
+  const periodStart = getPeriodStart(new Date(weekStart + 'T00:00:00'))
+  const periodDates = getPeriodDates(periodStart).map(toISODate)
+
+  const { data, error } = await supabase
+    .from('clock_sessions')
+    .select('id, entry_date, clocked_in_at, clocked_out_at, hours, notes')
+    .eq('user_id', user.id)
+    .gte('entry_date', periodDates[0])
+    .lte('entry_date', periodDates[periodDates.length - 1])
+    .order('clocked_in_at')
+
+  if (error || !data) return []
+
+  return data.map(s => ({
+    id: s.id,
+    date: s.entry_date,
+    clockedInAt: s.clocked_in_at,
+    clockedOutAt: s.clocked_out_at,
+    hours: s.hours,
+    notes: s.notes,
+  }))
 }
 
 export async function clockIn(): Promise<{

@@ -302,8 +302,8 @@ export default function ClockInOut({
 
       {/* Right: time sheet preview */}
       <div className="flex-1 min-w-0 py-6">
-        <div className="rounded-2xl border-4 bg-white overflow-hidden" style={{ borderColor: '#0B1460' }}>
-          <div className="overflow-auto max-h-[560px] pb-4">
+        <div className="border-4 bg-white overflow-hidden" style={{ borderColor: '#0B1460' }}>
+          <div className="overflow-auto max-h-[560px]">
             {weekStart && clockSessionRows ? (
               <TimeSheet weekStart={weekStart} sessions={clockSessionRows} compact />
             ) : (
@@ -313,6 +313,7 @@ export default function ClockInOut({
             )}
           </div>
         </div>
+        {balances && <MyTimeOffSummary key={timeOffRefreshKey} />}
         {balances && (
           <div className="grid grid-cols-3 gap-2 mt-4">
             {[
@@ -327,7 +328,6 @@ export default function ClockInOut({
             ))}
           </div>
         )}
-        {balances && <MyTimeOffSummary key={timeOffRefreshKey} />}
         <div className="flex gap-3 mt-3">
           <button
             onClick={() => setShowTimeOff(true)}
